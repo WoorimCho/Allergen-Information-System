@@ -89,8 +89,8 @@ Allergen-Information-System/
 
 ### Quick References
 - **[START_HERE.md](START_HERE.md)** ⭐ - Fastest way to get started
-- **[EXECUTIVE_SUMMARY.md](EXECUTIVE_SUMMARY.md)** - Quick project overview
-- **[PROJECT_SUMMARY.md](PROJECT_SUMMARY.md)** - Complete detailed summary
+- **[EXECUTIVE_SUMMARY.md](Copilot/EXECUTIVE_SUMMARY.md)** - Quick project overview
+- **[PROJECT_SUMMARY.md](Copilot/PROJECT_SUMMARY.md)** - Complete detailed summary
 
 ### Specific Guides
 - **[DOCKER_SETUP_GUIDE.md](DOCKER_SETUP_GUIDE.md)** - Complete Docker documentation
@@ -312,7 +312,7 @@ docker-compose ps
 **Theme:** Cherry Blossom 🌸  
 **Status:** Ready to Deploy 🚀  
 
-*For complete project details and implementation summary, see [PROJECT_SUMMARY.md](PROJECT_SUMMARY.md)*
+*For complete project details and implementation summary, see [PROJECT_SUMMARY.md](Copilot/PROJECT_SUMMARY.md)*
 
 ---
 
