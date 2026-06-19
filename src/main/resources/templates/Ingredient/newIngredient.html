@@ -1,18 +1,34 @@
 <!DOCTYPE html>
-<html lang="en">
-<html xmlns:th="https://www.thymeleaf.org">
+<html lang="en" xmlns:th="https://www.thymeleaf.org">
 <head>
   <meta charset="UTF-8">
-  <title>New Ingredient</title>
+  <title>New Ingredient - Allergen System 🌸</title>
+  <link rel="stylesheet" type="text/css" href="/css/mainmenu.css">
+  <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
 <body>
-  <h1>Ingredient Form</h1>
-  <form action="#" th:action="@{/newIngredient}" th:object="${ingredient}" method="post">
-    <p>Name: <input type="text" th:field="*{name}" /></p>
-    <p><input type="submit" value="Submit" /></p>
-  </form>
+<div class="container">
+  <div class="page-header">
+    <h1>➕ Add New Ingredient</h1>
+  </div>
 
-  <a href="/allIngredients">Back</a>
+  <div class="form-wrapper">
+    <form action="#" th:action="@{/newIngredient}" th:object="${ingredient}" method="post">
+      <p><label for="name">Ingredient Name:</label></p>
+      <p><input type="text" id="name" th:field="*{name}" placeholder="Enter ingredient name" required /></p>
+      <p><input type="submit" value="✅ Submit" /></p>
+    </form>
+  </div>
 
+  <div class="nav-links">
+    <form action="#" th:action="@{/allIngredients}" method="get">
+      <input type="submit" value="🔙 Back to Ingredients" />
+    </form>
+    <form action="#" th:action="@{/home}" method="get">
+      <input type="submit" value="🏠 Home" />
+    </form>
+  </div>
+</div>
 </body>
 </html>

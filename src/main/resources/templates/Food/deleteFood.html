@@ -4,36 +4,45 @@
 <html lang="en" xmlns:th="https://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8">
-    <title>Delete Food</title>
+    <title>Delete Food - Allergen System 🌸</title>
+    <link rel="stylesheet" type="text/css" href="/css/mainmenu.css">
+    <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
 <body>
-<table border="1">
-    <thead>
-    <tr>
-        <th>&nbsp ID &nbsp</th>
-        <th>&nbsp Name &nbsp</th>
-    </tr>
-    </thead>
-    <tbody>
-    <tr>
-        <td th:text = "${food.id}"></td>
-        <td th:text = "${food.name}"></td>
-    </tr>
-    </tbody>
-</table>
-<table>
-    <td>
-        <a href="/allFood">Back</a>
-    </td>
-    <td>
+<div class="container">
+    <div class="page-header">
+        <h1>🗑️ Delete Food</h1>
+        <p style="color: #D6A1B0; font-size: 16px; margin-top: 10px;">
+            Are you sure you want to delete this food item?
+        </p>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>🆔 ID</th>
+                <th>📛 Name</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td th:text = "${food.id}"></td>
+                <td th:text = "${food.name}"></td>
+            </tr>
+        </tbody>
+    </table>
+
+    <div class="nav-links">
+        <form action="#" th:action="@{/allFood}" method="get">
+            <input type="submit" value="❌ Cancel" />
+        </form>
         <form th:action="@{/deleteFood}" method="post">
             <input type="hidden" name="_method" value="delete" />
             <input type="hidden" name="foodId" th:value="${food.id}" />
-            <input type="submit" value="Confirm Delete" />
+            <input type="submit" value="✅ Confirm Delete" />
         </form>
-
-
-    </td>
-</table>
+    </div>
+</div>
 </body>
 </html>

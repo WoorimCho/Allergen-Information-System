@@ -4,13 +4,21 @@
 <html lang="en" xmlns:th="https://www.thymeleaf.org">
 <head>
   <meta charset="UTF-8">
-  <title>Get Food</title>
+  <title>View Food - Allergen System 🌸</title>
+  <link rel="stylesheet" type="text/css" href="/css/mainmenu.css">
+  <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
 <body>
-  <table border="1">
+<div class="container">
+  <div class="page-header">
+    <h1>🍱 Food Details</h1>
+  </div>
+
+  <table>
     <thead>
       <tr>
-        <th>&nbsp Name &nbsp</th>
+        <th>📛 Name</th>
       </tr>
     </thead>
     <tbody>
@@ -20,6 +28,14 @@
     </tbody>
   </table>
 
-  <a href="/allFood">Back</a>
+  <div class="nav-links">
+    <form action="#" th:action="@{/allFood}" method="get">
+      <input type="submit" value="🔙 Back to Foods" />
+    </form>
+    <form action="#" th:action="@{/home}" method="get">
+      <input type="submit" value="🏠 Home" />
+    </form>
+  </div>
+</div>
 </body>
 </html>

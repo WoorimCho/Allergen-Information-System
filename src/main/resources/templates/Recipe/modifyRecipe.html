@@ -2,34 +2,56 @@
 <html lang="en" xmlns:th="https://www.thymeleaf.org">
 <head>
   <meta charset="UTF-8">
-  <title>Modify Recipe</title>
+  <title>Modify Recipe - Allergen System 🌸</title>
+  <link rel="stylesheet" type="text/css" href="/css/mainmenu.css">
+  <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
 <body>
-<form action="#" th:action="@{/modifyRecipe}" th:object="${recipe}" method="post">
-  <input type="hidden" name="_method" value="put" />
-  <input type="hidden" name="index" th:value="${recipe.id}" />
-  <p>Food:
-    <select name="foodId" >
-      <option th:each="food : ${foods}"
-              th:selected ="${food==recipe.food}"
-              th:value="${food.id}"
-              th:text="${food.name}">
-      </option>
-    </select>
-  </p>
+<div class="container">
+  <div class="page-header">
+    <h1>✏️ Edit Recipe</h1>
+  </div>
 
-  <p>Ingredient:
-    <select name = "ingredientId">
-      <option th:each="ingredient : ${ingredients}"
-              th:selected ="${ingredient==recipe.ingredient}"
-              th:value="${ingredient.id}"
-              th:text="${ingredient.name}">
-      </option>
-    </select>
-  </p>
+  <div class="form-wrapper">
+    <form action="#" th:action="@{/modifyRecipe}" th:object="${recipe}" method="post">
+      <input type="hidden" name="_method" value="put" />
+      <input type="hidden" name="index" th:value="${recipe.id}" />
 
-  <input type="submit" value="Submit" />
-</form>
-<a href="/allRecipes">Back</a>
+      <p><label for="foodId">🍱 Select Food:</label></p>
+      <p>
+        <select id="foodId" name="foodId" required>
+          <option th:each="food : ${foods}"
+                  th:selected ="${food==recipe.food}"
+                  th:value="${food.id}"
+                  th:text="${food.name}">
+          </option>
+        </select>
+      </p>
+
+      <p><label for="ingredientId">🥬 Select Ingredient:</label></p>
+      <p>
+        <select id="ingredientId" name="ingredientId" required>
+          <option th:each="ingredient : ${ingredients}"
+                  th:selected ="${ingredient==recipe.ingredient}"
+                  th:value="${ingredient.id}"
+                  th:text="${ingredient.name}">
+          </option>
+        </select>
+      </p>
+
+      <p><input type="submit" value="💾 Save Changes" /></p>
+    </form>
+  </div>
+
+  <div class="nav-links">
+    <form action="#" th:action="@{/allRecipes}" method="get">
+      <input type="submit" value="🔙 Back to Recipes" />
+    </form>
+    <form action="#" th:action="@{/home}" method="get">
+      <input type="submit" value="🏠 Home" />
+    </form>
+  </div>
+</div>
 </body>
 </html>

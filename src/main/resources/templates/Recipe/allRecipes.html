@@ -3,45 +3,56 @@
 
 <head>
   <meta charset="UTF-8">
-  <title>Display All Recipes</title>
+  <title>All Recipes - Allergen System 🌸</title>
+  <link rel="stylesheet" type="text/css" href="/css/mainmenu.css">
+  <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
 <body>
-  <H1>Recipes</H1>
-  <table border="1">
+<div class="container">
+  <div class="page-header">
+    <h1>📝 Recipes</h1>
+  </div>
+
+  <table>
     <thead>
-    <tr>
-      <th>&nbsp Id &nbsp</th>
-      <th>&nbsp Food &nbsp</th>
-      <th>&nbsp Ingredient &nbsp</th>
-      <th>&nbsp Delete &nbsp</th>
-      <th>&nbsp Edit &nbsp</th>
-    </tr>
+      <tr>
+        <th>🆔 Id</th>
+        <th>🍱 Food</th>
+        <th>🥬 Ingredient</th>
+        <th>🗑️ Delete</th>
+        <th>✏️ Edit</th>
+      </tr>
     </thead>
     <tbody>
-    <tr th:each = "recipe : ${recipes}">
-      <td th:text = "${recipe.id}"></td>
-      <td th:text = "${recipe.food.name}"></td>
-      <td th:text = "${recipe.ingredient.name}"></td>
-      <td>
-        <form action="#" th:action="@{/deleteRecipe}" method="get">
-          <input type = "hidden" name ="index" th:value="${recipe.id}">
-          <input type="submit" value="Delete" />
-        </form>
-      </td>
-      <td>
-        <form action="#" th:action="@{/modifyRecipe}" method="get">
-          <input type = "hidden" name ="index" th:value="${recipe.id}">
-          <input type="submit" value="Edit" />
-        </form>
-      </td>
-    </tr>
+      <tr th:each = "recipe : ${recipes}">
+        <td th:text = "${recipe.id}"></td>
+        <td th:text = "${recipe.food.name}"></td>
+        <td th:text = "${recipe.ingredient.name}"></td>
+        <td>
+          <form action="#" th:action="@{/deleteRecipe}" method="get">
+            <input type = "hidden" name ="index" th:value="${recipe.id}">
+            <input type="submit" value="Delete" />
+          </form>
+        </td>
+        <td>
+          <form action="#" th:action="@{/modifyRecipe}" method="get">
+            <input type = "hidden" name ="index" th:value="${recipe.id}">
+            <input type="submit" value="Edit" />
+          </form>
+        </td>
+      </tr>
     </tbody>
   </table>
-  <form action="#" th:action="@{/newRecipe}" method="get">
-    <input type="submit" value="new Recipe" />
-  </form>
-  <form action="#" th:action="@{/home}" method="get">
-    <input type="submit" value="Home" />
-  </form>
+
+  <div class="nav-links">
+    <form action="#" th:action="@{/newRecipe}" method="get">
+      <input type="submit" value="➕ New Recipe" />
+    </form>
+    <form action="#" th:action="@{/home}" method="get">
+      <input type="submit" value="🏠 Home" />
+    </form>
+  </div>
+</div>
 </body>
 </html>

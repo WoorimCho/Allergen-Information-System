@@ -1,0 +1,39 @@
+<!DOCTYPE HTML>
+<html lang="en" xmlns:th="https://www.thymeleaf.org">
+<head>
+    <title>Allergen Information System 🌸</title>
+    <link rel="stylesheet" type="text/css" href="/css/mainmenu.css">
+    <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+    <div class="container">
+        <div class="page-header">
+            <h1>🌸 Allergen Information System 🌸</h1>
+            <p style="color: #D6A1B0; font-size: 18px; margin-top: 10px;">
+                Manage your food, ingredients, and recipes beautifully
+            </p>
+        </div>
+
+        <div class="nav-links">
+            <form action="#" th:action="@{/allFood}" method="get">
+                <input type="submit" value="🍱 View All Foods" />
+            </form>
+
+            <form action="#" th:action="@{/allIngredients}" method="get">
+                <input type="submit" value="🥬 View All Ingredients" />
+            </form>
+
+            <form action="#" th:action="@{/allRecipes}" method="get">
+                <input type="submit" value="📝 View All Recipes" />
+            </form>
+        </div>
+
+        <div style="text-align: center; margin-top: 40px; color: #D6A1B0; font-size: 14px;">
+            <p>Welcome to your allergen management portal</p>
+        </div>
+    </div>
+</body>
+</html>
+

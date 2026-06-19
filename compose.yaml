@@ -1,10 +1,47 @@
 services:
   mysql:
     image: 'mysql:latest'
+    container_name: allergen-mysql
     environment:
       - 'MYSQL_DATABASE=mydatabase'
       - 'MYSQL_PASSWORD=secret'
       - 'MYSQL_ROOT_PASSWORD=verysecret'
       - 'MYSQL_USER=myuser'
     ports:
-      - '3306'
+      - '3306:3306'
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pverysecret"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 30s
+    networks:
+      - allergen-network
+    restart: unless-stopped
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: allergen-app
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      - 'SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/mydatabase?allowPublicKeyRetrieval=true&useSSL=false'
+      - 'SPRING_DATASOURCE_USERNAME=myuser'
+      - 'SPRING_DATASOURCE_PASSWORD=secret'
+    ports:
+      - '8080:8080'
+    networks:
+      - allergen-network
+    restart: unless-stopped
+
+volumes:
+  mysql-data:
+
+networks:
+  allergen-network:
+    driver: bridge

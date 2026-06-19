@@ -1,32 +1,38 @@
 <!DOCTYPE HTML>
-<html xmlns:th="https://www.thymeleaf.org">
+<html lang="en">
 <head>
-    <title>Testing WebUI on mysql data Index</title>
-    <link rel="stylesheet" type="text/css" href="mainmenu.css">
+    <title>Allergen Information System 🌸</title>
+    <link rel="stylesheet" type="text/css" href="css/mainmenu.css">
+    <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&display=swap" rel="stylesheet">
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
 <body>
-    <a href="/allFood">View All foods</a>
+    <div class="container">
+        <div class="page-header">
+            <h1>🌸 Allergen Information System 🌸</h1>
+            <p style="color: #D6A1B0; font-size: 18px; margin-top: 10px;">
+                Manage your food, ingredients, and recipes beautifully
+            </p>
+        </div>
 
-    <a href="/allIngredients">View All Ingredients</a>
+        <div class="nav-links">
+            <form action="/allFood" method="get">
+                <input type="submit" value="🍱 View All Foods" />
+            </form>
 
-    <a href="/allRecipes">View All Recipes</a>
+            <form action="/allIngredients" method="get">
+                <input type="submit" value="🥬 View All Ingredients" />
+            </form>
 
-    <!--    <form action="#" th:action="@{/allFood}" method="get">-->
-<!--        <input type="submit" value="Home" />-->
-<!--    </form>-->
-    <form action="#" th:action="@{/allFood}" method="get">
-        <input type="submit" value="View All foods" />
-    </form>
+            <form action="/allRecipes" method="get">
+                <input type="submit" value="📝 View All Recipes" />
+            </form>
+        </div>
 
-    <form action="#" th:action="@{/allIngredients}" method="get">
-        <input type="submit" value="View All Ingredients" />
-    </form>
-
-    <form href="/allRecipes" method="get">
-        <input type="submit" value="View All Recipes" />
-    </form>
-
-
+        <div style="text-align: center; margin-top: 40px; color: #D6A1B0; font-size: 14px;">
+            <p>Welcome to your allergen management portal</p>
+        </div>
+    </div>
 </body>
 </html>

@@ -2,16 +2,35 @@
 <html lang="en" xmlns:th="https://www.thymeleaf.org">
 <head>
   <meta charset="UTF-8">
-  <title>Modify Ingredient</title>
+  <title>Modify Ingredient - Allergen System 🌸</title>
+  <link rel="stylesheet" type="text/css" href="/css/mainmenu.css">
+  <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
 <body>
-<form action="#" th:action="@{/modifyIngredient}" th:object="${ingredient}" method="post">
-  <input type="hidden" name="_method" value="put" />
-  <input type="hidden" name="ingredientId" th:value="${ingredient.id}" />
+<div class="container">
+  <div class="page-header">
+    <h1>✏️ Edit Ingredient</h1>
+  </div>
 
-  <p>Name: <input type="text" th:field="*{name}" value="ingredient.name"/></p>
-  <p><input type="submit" value="Submit" /></p>
-</form>
-<a href="/allIngredients">Back</a>
+  <div class="form-wrapper">
+    <form action="#" th:action="@{/modifyIngredient}" th:object="${ingredient}" method="post">
+      <input type="hidden" name="_method" value="put" />
+      <input type="hidden" name="ingredientId" th:value="${ingredient.id}" />
+      <p><label for="name">Ingredient Name:</label></p>
+      <p><input type="text" id="name" th:field="*{name}" value="ingredient.name" required /></p>
+      <p><input type="submit" value="💾 Save Changes" /></p>
+    </form>
+  </div>
+
+  <div class="nav-links">
+    <form action="#" th:action="@{/allIngredients}" method="get">
+      <input type="submit" value="🔙 Back to Ingredients" />
+    </form>
+    <form action="#" th:action="@{/home}" method="get">
+      <input type="submit" value="🏠 Home" />
+    </form>
+  </div>
+</div>
 </body>
 </html>

@@ -2,28 +2,42 @@
 <html lang="en" xmlns:th="https://www.thymeleaf.org">
 <head>
   <meta charset="UTF-8">
-  <title>Get Recipe</title>
+  <title>View Recipe - Allergen System 🌸</title>
+  <link rel="stylesheet" type="text/css" href="/css/mainmenu.css">
+  <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
 <body>
-<table border="1">
-  <thead>
-  <tr>
-    <th>&nbsp Id &nbsp</th>
-    <th>&nbsp Food &nbsp</th>
-    <th>&nbsp Ingredient &nbsp</th>
-  </tr>
-  </thead>
-  <tbody>
-  <tr>
-    <td th:text = "${recipe.id}"></td>
-    <td th:text = "${recipe.food}"></td>
-    <td th:text = "${recipe.ingredient}"></td>
-  </tr>
-  </tbody>
-</table>
+<div class="container">
+  <div class="page-header">
+    <h1>📝 Recipe Details</h1>
+  </div>
 
-<form action="#" th:action="@{/allRecipes}" method="get">
-  <input type="submit" value="Back" />
-</form>
+  <table>
+    <thead>
+      <tr>
+        <th>🆔 Id</th>
+        <th>🍱 Food</th>
+        <th>🥬 Ingredient</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td th:text = "${recipe.id}"></td>
+        <td th:text = "${recipe.food.name}"></td>
+        <td th:text = "${recipe.ingredient.name}"></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="nav-links">
+    <form action="#" th:action="@{/allRecipes}" method="get">
+      <input type="submit" value="🔙 Back to Recipes" />
+    </form>
+    <form action="#" th:action="@{/home}" method="get">
+      <input type="submit" value="🏠 Home" />
+    </form>
+  </div>
+</div>
 </body>
 </html>

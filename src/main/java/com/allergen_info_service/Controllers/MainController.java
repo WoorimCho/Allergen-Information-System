@@ -16,9 +16,9 @@ public class MainController {
     @Autowired
     BasicServiceImpl service;
 
-    @GetMapping("/home")
+    @GetMapping({"/", "/home"})
     public String home(){
-        return service.home();
+        return "home";
     }
 
     @GetMapping("/newFood")
