@@ -39,7 +39,7 @@ public class IngredientCatalogueClient {
                 .collect(Collectors.toMap(Ingredient::id, Function.identity(), (a, b) -> a));
     }
 
-    public record Ingredient(Long id, String name, List<Tag> tags, Nutrition nutrition) {
+    public record Ingredient(Long id, String name, List<Tag> tags, Nutrition nutrition, Double densityGPerMl) {
     }
 
     public record Tag(String name) {

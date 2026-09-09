@@ -44,8 +44,8 @@ class RecipeCalculatorServiceTest {
                 .andRespond(withSuccess(json, MediaType.APPLICATION_JSON));
     }
 
-    // 4 lines: flour (mass, has nutrition), milk (cup -> not weighable),
-    // salt (mass, no nutrition), #99 (unknown ingredient).
+    // 4 lines: flour (mass, has nutrition), mystery juice (cup, no density -> not
+    // weighable), salt (mass, no nutrition), #99 (unknown ingredient).
     private static final String RECIPE = """
             {"id":1,"name":"Test Loaf","creator":"anon","version":1,"steps":[],
              "ingredients":[
@@ -58,9 +58,23 @@ class RecipeCalculatorServiceTest {
     private static final String INGREDIENTS = """
             [{"id":10,"name":"flour","tags":[],
               "nutrition":{"basisGrams":100,"kcal":364,"proteinG":10,"carbsG":76,"fatG":1,"sodiumMg":2}},
-             {"id":11,"name":"milk","tags":[],
+             {"id":11,"name":"mystery juice","tags":[],
               "nutrition":{"basisGrams":100,"kcal":61,"proteinG":3.2}},
              {"id":12,"name":"salt","tags":[]}]""";
+
+    // a volume line whose ingredient carries an explicit density
+    private static final String RECIPE_VOL = """
+            {"id":1,"name":"Milk Bath","creator":"anon","version":1,"steps":[],
+             "ingredients":[
+               {"ingredientId":20,"quantity":"2 cup","amount":2,"unit":"cup","optional":false,"replaceable":false,"replacements":[]},
+               {"ingredientId":10,"quantity":"200 g","amount":200,"unit":"g","optional":false,"replaceable":false,"replacements":[]}],
+             "tags":[]}""";
+
+    private static final String INGREDIENTS_VOL = """
+            [{"id":20,"name":"whole milk","tags":[],"densityGPerMl":1.0,
+              "nutrition":{"basisGrams":100,"kcal":50}},
+             {"id":10,"name":"all-purpose flour","tags":[],
+              "nutrition":{"basisGrams":100,"kcal":364}}]""";
 
     @Test
     void nutritionSumsWeighableLinesAndFlagsTheRest() {
@@ -78,13 +92,48 @@ class RecipeCalculatorServiceTest {
         assertThat(r.lines()).hasSize(4);
         assertThat(r.lines().get(0).counted()).isTrue();
         assertThat(r.lines().get(0).grams()).isEqualTo(200.0);
-        assertThat(r.lines().get(1).note()).contains("cup").contains("not a weight");
+        assertThat(r.lines().get(1).note()).contains("cup").contains("density");
         assertThat(r.lines().get(2).note()).contains("no nutrition data");
         assertThat(r.lines().get(3).note()).isEqualTo("unknown ingredient");
         assertThat(r.notCounted()).hasSize(3);
 
         recipeServer.verify();
         ingredientServer.verify();
+    }
+
+    @Test
+    void volumeLineIsCountedWhenTheIngredientHasADensity() {
+        stubRecipe(RECIPE_VOL);
+        stubIngredients(INGREDIENTS_VOL);
+
+        RecipeCalculatorService.NutritionResult r = calc.nutrition(1, 1);
+
+        // 2 cups * 236.588 ml * 1.0 g/ml = 473.2 g of milk
+        RecipeCalculatorService.LineNutrition milk = r.lines().get(0);
+        assertThat(milk.counted()).isTrue();
+        assertThat(milk.grams()).isEqualTo(473.2);
+        assertThat(milk.millilitres()).isEqualTo(473.2);
+        assertThat(milk.contribution().kcal()).isEqualTo(236.6);     // 473.2 * 50/100
+
+        // the mass line gets a millilitre equivalent too (flour density ~0.53 from the common table)
+        RecipeCalculatorService.LineNutrition flour = r.lines().get(1);
+        assertThat(flour.grams()).isEqualTo(200.0);
+        assertThat(flour.millilitres()).isNotNull();
+
+        assertThat(r.total().kcal()).isEqualTo(965.0);               // round(236.588 + 728)
+    }
+
+    @Test
+    void portionsCarriesScaledMassAndVolumeEquivalents() {
+        stubRecipe(RECIPE_VOL);
+        stubIngredients(INGREDIENTS_VOL);
+
+        RecipeCalculatorService.PortionResult p = calc.portions(1, 2.0, null, null, null);
+
+        RecipeCalculatorService.ScaledLine milk = p.lines().get(0);
+        assertThat(milk.scaledAmount()).isEqualTo(4.0);              // 2 cup -> 4 cup
+        assertThat(milk.scaledGrams()).isEqualTo(946.4);             // 473.2 g -> * 2
+        assertThat(milk.scaledMillilitres()).isEqualTo(946.4);
     }
 
     @Test

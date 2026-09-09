@@ -8,8 +8,8 @@ import java.util.OptionalDouble;
  * The BFF's copy of RecipeCatalogue's {@code Unit} conversions — cross-service
  * code can't be shared, and the calculators need to turn a line's
  * {@code amount + unit} into grams (for nutrition) or a common base (for
- * scaling). Kept deliberately small; RecipeCatalogue's enum is the source of
- * truth for what units exist.
+ * scaling), and to show a volume↔mass equivalent. Kept deliberately small;
+ * RecipeCatalogue's enum is the source of truth for what units exist.
  */
 final class Units {
 
@@ -53,8 +53,59 @@ final class Units {
         return u == null ? OptionalDouble.empty() : OptionalDouble.of(amount * (double) u[1]);
     }
 
-    /** {@code amount} in grams — only for MASS units. Empty otherwise (volume/count aren't weighable without more data). */
+    /** {@code amount} in grams — only for MASS units. Empty otherwise (volume/count aren't weighable without density). */
     static OptionalDouble toGrams(Double amount, String unit) {
-        return dimension(unit) == Dimension.MASS ? toBase(amount, unit) : OptionalDouble.empty();
+        return toGrams(amount, unit, null);
+    }
+
+    /**
+     * {@code amount} in grams. MASS units convert directly; VOLUME units need
+     * {@code densityGPerMl} (grams per millilitre) and are otherwise empty;
+     * COUNT / unknown units are always empty.
+     */
+    static OptionalDouble toGrams(Double amount, String unit, Double densityGPerMl) {
+        Dimension d = dimension(unit);
+        if (d == Dimension.MASS) {
+            return toBase(amount, unit);
+        }
+        if (d == Dimension.VOLUME && densityGPerMl != null && densityGPerMl > 0) {
+            OptionalDouble ml = toBase(amount, unit);
+            return ml.isPresent() ? OptionalDouble.of(ml.getAsDouble() * densityGPerMl) : OptionalDouble.empty();
+        }
+        return OptionalDouble.empty();
+    }
+
+    /** Millilitres for {@code grams} of a substance with the given density. Empty without a usable density. */
+    static OptionalDouble gramsToMillilitres(double grams, Double densityGPerMl) {
+        return densityGPerMl != null && densityGPerMl > 0
+                ? OptionalDouble.of(grams / densityGPerMl)
+                : OptionalDouble.empty();
+    }
+
+    /**
+     * A human volume string for {@code ml} — picks cups / tbsp / tsp / ml by
+     * magnitude and rounds to a sensible precision. e.g. {@code 355.0 -> "1.5 cup"}.
+     */
+    static String prettyVolume(double ml) {
+        if (ml >= 0.75 * 236.5882365) {
+            return trim(ml / 236.5882365) + " cup";
+        }
+        if (ml >= 0.75 * 14.78676478125) {
+            return trim(ml / 14.78676478125) + " tbsp";
+        }
+        if (ml >= 0.75 * 4.92892159375) {
+            return trim(ml / 4.92892159375) + " tsp";
+        }
+        return trim(ml) + " ml";
+    }
+
+    /** A human mass string for {@code grams} — g up to 1 kg, then kg. */
+    static String prettyMass(double grams) {
+        return grams >= 1000 ? trim(grams / 1000.0) + " kg" : trim(grams) + " g";
+    }
+
+    private static String trim(double v) {
+        double r = Math.round(v * 100.0) / 100.0;
+        return r == Math.rint(r) ? Long.toString((long) r) : Double.toString(r);
     }
 }

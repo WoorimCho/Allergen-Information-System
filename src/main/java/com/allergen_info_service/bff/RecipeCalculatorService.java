@@ -51,13 +51,15 @@ public class RecipeCalculatorService {
         for (RecipeCatalogueClient.Ingredient line : nullToEmpty(recipe.ingredients())) {
             IngredientCatalogueClient.Ingredient entry = resolved.get(line.ingredientId());
             String name = entry != null ? entry.name() : "unknown ingredient (#" + line.ingredientId() + ")";
-            OptionalDouble grams = Units.toGrams(line.amount(), line.unit());
+            Double density = densityFor(entry);
+            OptionalDouble grams = Units.toGrams(line.amount(), line.unit(), density);
+            Double millilitres = millilitresOf(line, grams, density);
             IngredientCatalogueClient.Nutrition n = entry == null ? null : entry.nutrition();
 
             String note = whyNotCounted(line, entry, grams, n);
             if (note != null) {
                 lines.add(new LineNutrition(line.ingredientId(), name, line.amount(), line.unit(),
-                        grams.isPresent() ? round1(grams.getAsDouble()) : null,
+                        grams.isPresent() ? round1(grams.getAsDouble()) : null, millilitres,
                         line.optional(), false, note, null));
                 notCounted.add(name + " — " + note);
                 continue;
@@ -71,7 +73,7 @@ public class RecipeCalculatorService {
             addTo(total, any, c);
             countedGrams += grams.getAsDouble();
             lines.add(new LineNutrition(line.ingredientId(), name, line.amount(), line.unit(),
-                    round1(grams.getAsDouble()), line.optional(), true, null, c));
+                    round1(grams.getAsDouble()), millilitres, line.optional(), true, null, c));
         }
 
         NutritionSum totalSum = toSum(total, any, 1);
@@ -106,8 +108,16 @@ public class RecipeCalculatorService {
             IngredientCatalogueClient.Ingredient entry = resolved.get(line.ingredientId());
             String name = entry != null ? entry.name() : "unknown ingredient (#" + line.ingredientId() + ")";
             Double scaledAmount = line.amount() == null ? null : round1(line.amount() * factor);
+
+            // volume↔mass equivalents, scaled by the same factor, when we can derive them
+            Double density = densityFor(entry);
+            OptionalDouble grams = Units.toGrams(line.amount(), line.unit(), density);
+            Double millilitres = millilitresOf(line, grams, density);
+            Double scaledGrams = grams.isPresent() ? round1(grams.getAsDouble() * factor) : null;
+            Double scaledMillilitres = millilitres == null ? null : round1(millilitres * factor);
+
             lines.add(new ScaledLine(line.ingredientId(), name, line.amount(), line.unit(),
-                    scaledAmount, line.quantity(), line.amount() != null));
+                    scaledAmount, scaledGrams, scaledMillilitres, line.quantity(), line.amount() != null));
         }
         return new PortionResult(recipe.id(), recipe.name(), round2(factor), lines);
     }
@@ -169,10 +179,37 @@ public class RecipeCalculatorService {
             return "no structured amount";
         }
         if (grams.isEmpty()) {
-            return "unit '" + line.unit() + "' is not a weight (need per-item weight or density)";
+            return switch (Units.dimension(line.unit())) {
+                case VOLUME -> "volume unit '" + line.unit() + "' needs a density — set one on the ingredient";
+                case COUNT -> "unit '" + line.unit() + "' is a count — needs a per-item weight";
+                default -> "unit '" + line.unit() + "' can't be converted to a weight";
+            };
         }
         if (n == null || n.basisGrams() == null || n.basisGrams() <= 0 || !hasAnyFigure(n)) {
             return "no nutrition data";
+        }
+        return null;
+    }
+
+    /** The ingredient's own density if set, else a common-name guess, else null. */
+    private static Double densityFor(IngredientCatalogueClient.Ingredient entry) {
+        if (entry == null) {
+            return null;
+        }
+        if (entry.densityGPerMl() != null && entry.densityGPerMl() > 0) {
+            return entry.densityGPerMl();
+        }
+        return CommonDensities.lookup(entry.name());
+    }
+
+    /** A line's volume in millilitres: direct for VOLUME units, via density for MASS units, else null. */
+    private static Double millilitresOf(RecipeCatalogueClient.Ingredient line, OptionalDouble grams, Double density) {
+        if (Units.dimension(line.unit()) == Units.Dimension.VOLUME) {
+            OptionalDouble ml = Units.toBase(line.amount(), line.unit());
+            return ml.isPresent() ? round1(ml.getAsDouble()) : null;
+        }
+        if (grams.isPresent() && density != null && density > 0) {
+            return round1(grams.getAsDouble() / density);
         }
         return null;
     }
@@ -237,7 +274,7 @@ public class RecipeCalculatorService {
     }
 
     public record LineNutrition(
-            Long ingredientId, String name, Double amount, String unit, Double grams,
+            Long ingredientId, String name, Double amount, String unit, Double grams, Double millilitres,
             boolean optional, boolean counted, String note, NutritionSum contribution) {
     }
 
@@ -255,9 +292,15 @@ public class RecipeCalculatorService {
             int countedLines, int totalLines) {
     }
 
+    /**
+     * {@code scaledAmount} is in the line's own {@code unit}; {@code scaledGrams}
+     * / {@code scaledMillilitres} are the volume↔mass equivalents (present only
+     * when a density is known), so the UI can show the amount either way.
+     */
     public record ScaledLine(
             Long ingredientId, String name, Double originalAmount, String unit,
-            Double scaledAmount, String quantityText, boolean scaled) {
+            Double scaledAmount, Double scaledGrams, Double scaledMillilitres,
+            String quantityText, boolean scaled) {
     }
 
     public record PortionResult(Long recipeId, String recipeName, double scale, List<ScaledLine> lines) {

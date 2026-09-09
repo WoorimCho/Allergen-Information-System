@@ -39,9 +39,9 @@ All under `/bff/**`, session required (`POST /bff/login` first).
 | `POST /bff/logout` | 204 |
 | `GET  /bff/recipes/{id}` | recipe composed from RecipeCatalogue + IngredientCatalogue + the caller's restrictions/preferred-swaps (`restrictionConflicts`, `inheritedTags`, per-line `amount`/`unit`) |
 | `GET  /bff/accounts/{accountId}/favorite-recipes` | the caller's favourites as summaries — **ownership-checked** (403 for another account) |
-| `GET  /bff/recipes/{id}/nutrition?servings=N` | per-line contribution + `total` + `perServing` + **`per100g`** + `countedGrams`; un-weighable lines listed in `notCounted` |
+| `GET  /bff/recipes/{id}/nutrition?servings=N` | per-line contribution + `grams`/`millilitres` + `total` + `perServing` + **`per100g`** + `countedGrams`; un-weighable lines in `notCounted`. A volume line (cups, tbsp) is counted when the ingredient has a `densityGPerMl` (or matches the built-in `CommonDensities` table). |
 | `GET  /bff/recipes/{id}/calories?servings=N` | `totalKcal`, `perServingKcal`, **`kcalPer100g`**, **`kcalPerGram`**, `countedGrams`, counted/total lines |
-| `GET  /bff/recipes/{id}/portions?scale=X` **or** `?anchorIngredientId=&anchorAmount=&anchorUnit=` | every line's numeric amount × factor |
+| `GET  /bff/recipes/{id}/portions?scale=X` **or** `?anchorIngredientId=&anchorAmount=&anchorUnit=` | every line's numeric amount × factor, plus `scaledGrams` / `scaledMillilitres` (the volume↔mass equivalent, when a density is known) |
 
 `GET /request` / `POST /response` remain for the GoodNight round-trip demo.
 `templates/` still holds the retired Thymeleaf CRUD views with `<!-- RETIRED -->`
@@ -80,8 +80,9 @@ out.
 ## Tests
 
 ```bash
-./mvnw test        # 26: context, BFF security, composition, calculators,
-                   #     GoodNight client, circuit-breaker interceptor
+./mvnw test        # 28: context, BFF security, composition, calculators
+                   #     (incl. volume↔mass via density), GoodNight client,
+                   #     circuit-breaker interceptor
 ```
 
 ## Stack notes
