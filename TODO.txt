@@ -13,9 +13,12 @@ Since 2026-08-29, in ../IngredientCatalogue/CHANGES.md:
   - Email is optional on the User service (V3 migration).
   - Ingredient density (g/ml) -> the calculators convert volume <-> mass.
   - Portion calculator got a live UI slider + a grams/ml/as-written toggle.
-  - recipe-crawler service (:8086) — import a recipe from a URL (schema.org / JSON-LD),
-    now with link-following, robots.txt and per-host rate limiting.
-  - All 8 repos pushed to GitHub; CI workflow in every one.
+  - recipe-crawler service (:8086) — import a recipe from a URL (schema.org
+    JSON-LD or HTML microdata, non-LLM), with crawl: link-following, robots.txt,
+    per-host rate limiting.
+  - GoodNightWorld caught up to Boot 4.1.1 (OpenFeign -> RestClient).
+  - All 8 repos pushed to GitHub; CI workflow in every one, package-write enabled.
+  - Projects/ is deliberately NOT a git repo (compose.yaml / infra/ are local-only).
 
 ------------------------------------------------------------------
 MIGRATION STRATEGY
@@ -391,10 +394,14 @@ Track chosen: foundations -> calculators first. Detail:
     ~30-food fallback table matched by name. BFF 28, IC 29 green.
 
 [x] recipe-crawler service (Projects/recipe-crawler, :8086, Maven, no DB):
-      [x] POST /api/import/preview {url}  -> fetch HTML, parse the schema.org /
-          JSON-LD Recipe (@graph / HowToStep / HowToSection / malformed-block
-          tolerant), parse each "2 1/2 cups flour, sifted" line into
-          amount+unit+name+note, match names against IngredientCatalogue. No writes.
+      [x] Recipe extraction, NON-LLM, tried in order (parse/RecipeExtractor):
+            1. schema.org JSON-LD (@graph / HowToStep / HowToSection /
+               malformed-block tolerant)
+            2. schema.org HTML microdata (itemscope itemtype=".../Recipe" +
+               itemprop; nested-scope aware; <meta content>; <ol>/<li> steps)
+      [x] POST /api/import/preview {url}  -> fetch + extract, parse each
+          "2 1/2 cups flour, sifted" line into amount+unit+name+note, match names
+          against IngredientCatalogue. No writes.
       [x] POST /api/import/commit {url, creator?}  -> the above, then create any
           missing ingredients + the recipe (tagged source:imported, creator
           import:<host>).
@@ -404,12 +411,11 @@ Track chosen: foundations -> calculators first. Detail:
           maxPages/maxDepth; imports every page that has a Recipe, reports the rest.
       [x] Per-target circuit breakers (recipe-source / ingredient-catalogue /
           recipe-catalogue) + spring.http.clients.* timeouts.
-      [x] UI: /recipes/import-url (preview -> import).  Tests: 20+.
-[ ] RAG portion: parse free-text (non-JSON-LD) recipes -> structured
-    RecipeCatalogue JSON via an LLM. NOT STARTED. Prereq "../claude-api reference"
-    does not exist in the tree — supply the Anthropic API docs first. Likely home:
-    a module in recipe-crawler (it already owns fetch + ingredient-line parsing +
-    the catalogue writes), reached when JSON-LD parsing finds nothing.
+      [x] UI: /recipes/import-url (preview -> import) + /recipes/crawl.  39 tests.
+[ ] RAG portion: for pages with NEITHER JSON-LD nor microdata (free-text /
+    RDFa-only), hand the HTML to an LLM -> structured RecipeCatalogue JSON.
+    NOT STARTED. Home: a third strategy in RecipeExtractor, after microdata.
+    Use the claude-api reference when starting it.
 
 
 ==================================================================
