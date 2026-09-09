@@ -438,9 +438,18 @@ PHASE 5 - DEPLOY / HARDEN                                  [in progress]
               recipe-crawler/InternalAuthFilter — HMAC required on /api/** writes
               (reads open). Outbound signer on the BFF / UI / crawler RestClients;
               acting user from BffPrincipal / session CurrentUser / none.
+    Batch 3 done 2026-09-09 (UI Spring Security):
+      [x] H2  spring-boot-starter-security + SecurityConfig (permitAll); CSRF on
+              (th:action auto-injects _csrf); SameSite=Strict cookie; no URL rewriting
+      [x] M5  X-Frame-Options DENY, nosniff, CSP, Referrer-Policy no-referrer
+      [x] M1  request.changeSessionId() in AuthController login / register
     Still open:
-      [ ] H2/M1/M5  spring-boot-starter-security on the UI: CSRF, headers,
-              SameSite cookie, session rotation on login  <- next
+      [ ] H4  per-service compose.yaml files still carry root/verysecret, myuser/secret
+              -> untracked .env, non-trivial values
+      [ ] M3  register enumeration (distinct "username taken" vs "email registered")
+      [ ] M4  rate limiting on /login /register /authenticate
+      [ ] module-local compose.yaml files not yet 127.0.0.1-bound
+      [ ] /actuator unprotected; L1-L7 low-severity
       [ ] H4  MySQL creds -> untracked .env; non-trivial values
       [ ] M3  register enumeration     M4  rate limiting on auth endpoints
       [ ] module-local compose.yaml files not yet 127.0.0.1-bound
