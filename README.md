@@ -110,5 +110,7 @@ assessment. Do not deploy as-is.
 
 ## Status
 
-BFF **done**. Phase 4 calculators + composition include structured quantities and
-per-gram density. Remaining roadmap: RAG recipe parsing, webcrawler (not started).
+BFF **done**. Phase 4 calculators + composition include structured quantities,
+per-gram figures, and volume↔mass conversion via ingredient density. The
+webcrawler shipped as its own service (`../recipe-crawler`, port 8086 — imports a
+recipe from a URL). Remaining roadmap: RAG recipe parsing (not started).
