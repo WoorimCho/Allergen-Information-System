@@ -1,0 +1,382 @@
+ALLERGEN INFORMATION SYSTEM
+Microservices migration + product roadmap
+Last updated: 2026-08-29
+
+Merge of the migration/infra plan with the product roadmap in
+  src/main/resources/TODO Lst   (kept as-is; this file supersedes it for tracking)
+Catalogue work, file-by-file:
+  ../IngredientCatalogue/CHANGES.md
+
+------------------------------------------------------------------
+MIGRATION STRATEGY
+------------------------------------------------------------------
+Build each service to a feature-complete v1 ALONGSIDE the still-intact
+monolith. Do not gut the monolith incrementally - it keeps owning its
+tables and serving its UI as the fallback. When every catalogue is proven,
+do the cutover in one pass (Phase 3).
+
+------------------------------------------------------------------
+DECISIONS LOCKED
+------------------------------------------------------------------
+- Monolith -> BFF only. Phase 3 retired its Thymeleaf CRUD; it is now a
+  stateless BFF + auth gateway (no DB). SUPERSEDED the old "monolith evolves
+  into UI + BFF" plan: the UI is now its OWN service (Projects/UI, :8081,
+  Spring Boot 4.1.1 + Thymeleaf), a thin server-rendered client that calls the
+  catalogues + User directly and the BFF for the composed view + calculators.
+  It logs the user into the BFF and relays that JSESSIONID.
+- Food + Ingredient = ONE entity, fully unified, in IngredientCatalogue. No
+  separate Food entity and no /api/foods. Any sub-distinction (e.g. "raw /
+  edible without cooking" vs "processed") is a tag such as form:raw, not a
+  field. Whether a recipe produces or uses an entry is a RecipeCatalogue concern.
+- Recipe references catalogue entries by id only (cross-service, no FK).
+- User is ITS OWN service (Projects/User, :8084), not a BFF module.
+- DB topology: ONE MySQL instance, one schema per service (mydatabase,
+  ingredient_catalogue, recipe_catalogue, user_service). Created by
+  Projects/infra/mysql-init on first boot.
+- Auth: BFF-ENFORCED SESSION. POST /bff/login checks credentials against the
+  User service and issues a session cookie; /bff/** requires it. Services stay
+  identity-agnostic (trusted network) - the BFF is the enforcement point.
+  Swap point if it ever moves to OAuth2: bff/BffSecurityConfig.
+
+DECISIONS STILL OPEN
+- (resolved 2026-09-08) Spring Boot version: all four services on 4.1.1.
+
+------------------------------------------------------------------
+TARGET SERVICES
+------------------------------------------------------------------
+  BFF / auth gateway (ex-monolith)        :8080   stateless, no DB   [done]
+  UI (Thymeleaf, own service)             :8081   Projects/UI        [v1 complete]
+  IngredientCatalogue (unified Ingredient/Food)  :8082  MySQL 3307  [v1 complete]
+  RecipeCatalogue                           :8083   MySQL 3308   [v1 complete]
+  User                                    :8084   MySQL 3309   [v1 complete]
+  GoodNight (tester)                      :8085   [done]
+
+
+==================================================================
+PHASE 0 - REVIEW THE CODE                                    [DONE]
+==================================================================
+[x] Understand each line/file/class/service; how it works; the annotations;
+    the repository; target/ folder; datasource config; Dockerfile/compose; README
+
+
+==================================================================
+PHASE 1 - BUILD THE SERVICES                            [COMPLETE]
+==================================================================
+All four services (IngredientCatalogue, RecipeCatalogue, User, GoodNight) are
+v1-done, tested and Docker-verified. The BFF composes them, personalises for
+the logged-in account, and enforces a session. Remaining [ ] items below are
+Phase 2, the Phase 3 cutover, or "Later" polish - flagged inline.
+
+Per-slice extraction recipe (repeat for each domain):
+  1. Start from the catalogue template (copy the IngredientCatalogue skeleton)
+  2. Copy the entity; cut every cross-aggregate @ManyToOne/@ManyToMany,
+     replace with Long / Set<Long> id fields
+  3. CrudRepository -> JpaRepository (+ JpaSpecificationExecutor)
+  4. @RestController + DTO records (return JSON, not view names)
+  5. Own schema + Flyway V1__init.sql
+  6. Move that domain's logic out of the monolith's BasicServiceImpl into the
+     service's own @Transactional service class
+  7. Parity: tests, Dockerfile, compose "app" service, actuator, openapi.yaml
+  Keep the monolith working against its own DB the whole time; flip the UI to
+  call a service only after that catalogue is proven.
+
+--- GoodNight (tester) ---
+[x] Extracted; wired into the monolith via goodnight.url + compose
+
+--- IngredientCatalogue  (unified Ingredient/Food)          [v1 COMPLETE] ---
+[x] Entity storage; Tag + ingredient_tag join + tag-search
+    (?tag=a&tag=b&match=all|any), prefix autocomplete, tag merge,
+    get-or-create by normalised name
+[x] DTOs + Bean Validation + ProblemDetail error handler
+[x] Flyway V1; ddl-auto=validate; actuator (health/info/prometheus); buildInfo
+[x] openapi.yaml at /openapi.yaml; Dockerfile + compose "app" (profile "full")
+[x] Integration tests 8/8 (Testcontainers MySQL); verified as a container stack
+[x] Food folded in: one Ingredient entry represents both food and ingredient.
+    No separate Food entity/endpoints. Raw-vs-processed etc. is a tag
+    (form:raw), not a field. Javadoc + openapi.yaml updated; see
+    ../IngredientCatalogue/CHANGES.md ("Update - 2026-08-29 (later)").
+[x] Tag entries, freely editable  (PUT /api/ingredients/{id},
+    PUT /api/tags/{id}, POST/DELETE /api/ingredients/{id}/tags)
+[x] Create custom tags  (POST /api/tags)
+    -- surfacing tag create/edit in the UI is a UI+BFF task, not this service.
+[x] Batch lookup GET /api/ingredients/by-ids?id=..  (for BFF recipe composition)
+[ ] Later (Phase 4 territory): nutritional-facts fields; CSV bulk import.
+
+--- RecipeCatalogue                                        [v1 COMPLETE] ---
+[x] Scaffold: Tag + recipe_tag join + tag-search, DTOs, Flyway, actuator,
+    openapi.yaml, Dockerfile + compose
+[x] Full recipe model  (detail: ../IngredientCatalogue/CHANGES.md ->
+    "Update - 2026-08-29 (later): RecipeCatalogue - full recipe model"):
+      [x] Steps as ordered structured data; each step carries its tools
+      [x] RecipeIngredient child: quantity, optional, replaceable
+            [x] replaceable -> list replacements (walnuts -> almonds)
+            [x] replacement makeable -> nullable recipeId link
+                (buttermilk: bought OR made)
+            [x] optional ingredients
+      [x] Variations: creator + version; unique (name, creator, version);
+          next version auto-assigned
+      [x] Recipe-exclusive tags = namespaced tags (tool:beater,
+          difficulty:easy, time:90min, category:snack) - no new structure
+      [x] Inherit tags from linked entries  -- DONE in the BFF: GET
+          /bff/recipes/{id} returns `inheritedTags` (union of the line
+          ingredients' tags, resolved via IngredientCatalogue by-ids)
+[x] Search recipes by name, tags (all/any), ingredient  (via Specifications)
+      [x] ...by favorites  -- DONE: GET /api/recipes/by-ids added; BFF's
+          GET /bff/accounts/{id}/favorite-recipes lists them as summaries
+[x] Editable recipes  (PUT rebuilds steps / ingredients / replacements / tags)
+[x] Batch lookup GET /api/recipes/by-ids?id=..  (for BFF favourites list)
+[x] 12 tests green; verified as a container stack
+[ ] Later: promote time/difficulty to fields if range-filter/sort is needed;
+    structured quantity/units for the Phase 4 calculators; @EntityGraph for
+    the list endpoint's N+1
+
+--- UI + BFF  (the evolved monolith - Option 3) ---
+[x] BFF composition layer started: package com.allergen_info_service.bff -
+    RestClient beans (CatalogueClientConfig), typed clients for both catalogues,
+    RecipeCompositionService, GET /bff/recipes/{id}, downstream-failure ->
+    404/502 handler. 2 unit tests + verified live against all 3 services.
+    Detail: ../IngredientCatalogue/CHANGES.md -> "Update - 2026-08-29 (later):
+    connecting recipes to ingredients".
+[x] Cross-service compose: recipe + resolved ingredient names/tags +
+    inheritedTags  (GET /bff/recipes/{id})
+      [x] ...+ flag against the caller's restrictions  (restrictionConflicts +
+          compatibleWithAccount; literal tag match; account id from the session)
+      [x] ...+ show the account's preferred substitution per line
+          (preferredReplacementId / preferredReplacementName)
+      [x] ...+ GET /bff/accounts/{id}/favorite-recipes (summaries; own-account only)
+      [ ] compose the Thymeleaf PAGES from the catalogues (endpoint is JSON only
+          today; the UI still uses local repos) -- this is the Phase 3 cutover
+      [ ] smarter diet semantics (no "recipe IS vegan" inference yet);
+          parallelise the BFF's downstream calls   [Phase 2 / polish]
+[x] Auth = BFF-enforced session (decision locked). BffSecurityConfig: /bff/**
+    requires a session; POST /bff/login delegates to the User service; account
+    id read from @AuthenticationPrincipal; own-account checks -> 403. Legacy
+    Thymeleaf UI left open (monolith intact). @WebMvcTest + live-verified.
+[x] GoodNightRestClientImpl: new RestTemplate() -> injected RestClient bean
+    (+ test). Last raw RestTemplate in the codebase.
+[ ] Replace every xxxRepository call in BasicServiceImpl with a RestClient
+    call  -- this is the Phase 3 cutover (keep the monolith intact until then)
+[ ] Add caching (@Cacheable, short TTL) to IngredientCatalogueClient.byIds  [Phase 2]
+[ ] Forward identity to the services so they can verify it themselves
+    (signed token on BFF->service calls) -- hardening, only if needed later
+
+--- User                                                  [v1 COMPLETE] ---
+    (Projects/User, :8084, MySQL 3309; detail in ../IngredientCatalogue/CHANGES.md
+     -> "Update - 2026-08-29 (later): the User service")
+[x] Own service (decision locked). Boot 4.1.1, same parity kit as the catalogues.
+[x] Account: register, get, editable profile (email/displayName), delete;
+    password stored as BCrypt; PUT /api/accounts/{id}/password
+[x] Login primitive: POST /api/authenticate -> identity, or 401. Stays a
+    credential verifier only - the BFF holds the session (auth decision locked).
+[x] Per-account food restrictions  (GET/PUT /api/accounts/{id}/restrictions;
+    codes normalised to trimmed lower-case, free text)
+[x] Canonical common-restrictions catalogue  (seeded ~22: diet / allergen /
+    religious / lifestyle; GET /api/restrictions[?kind=], GET /{code})
+[x] Favouriting: recipes (POST/DELETE .../favorites/recipes/{recipeId}) AND
+    specific substitutions (FavoriteAlternative: recipe + ingredient ->
+    preferred replacement; PUT/GET/DELETE .../favorites/alternatives)
+[x] Flyway V1+V2, ddl-auto=validate, actuator, openapi.yaml, Dockerfile +
+    compose "app", 12 tests green, verified as a container stack
+[x] Access control: the BFF enforces "your own account only"; direct calls to
+    this service are unauthenticated (trusted network). Verifying a forwarded
+    identity here is the optional hardening step (see UI + BFF).
+[ ] Later (v2): rate limiting on register/authenticate; email verification;
+    password reset
+
+--- Split checklist (from TODO Lst) ---
+[x] Backend: split across the catalogue services + User
+[ ] Front end: lives in the UI+BFF service
+[x] Database: schema per service (ingredient_catalogue / recipe_catalogue /
+    user_service) in one MySQL; UI+BFF keeps only session-ish data
+
+
+==================================================================
+PHASE 2 - SYSTEM INTEGRATION / INFRA          [done bar the GitHub push]
+==================================================================
+Done: top-level compose, DB topology, metrics (Prometheus+Grafana),
+service-to-service RestClient, distributed tracing (spans reach Zipkin from all
+services), Maven wrapper, dead-dep cleanup, CI workflows (every repo), tests
+(@DataJpaTest + contract test + full suites green), Page-envelope, Boot 4.1.1.
+Left for the user: push the repos to GitHub so the CI workflows run.
+[x] Top-level compose: Projects/compose.yaml - mysql + ingredient-catalogue +
+    recipe-catalogue + user + goodnight + bff on one network, service-name DNS,
+    health-gated startup (bff waits for the catalogues healthy). One `docker
+    compose up`. Verified: bff -> recipe-catalogue -> ingredient-catalogue over
+    the network. Detail: ../IngredientCatalogue/CHANGES.md -> "Update -
+    2026-08-29 (later): top-level compose".
+[x] DB-topology decision resolved: one MySQL, schema per service
+    (Projects/infra/mysql-init/01-databases.sql).
+[x] Service-to-service = plain REST over compose/k8s DNS via RestClient.
+    No gateway (the BFF is the entry point); no service discovery at this size.
+    bff/ clients + CatalogueClientConfig for all of recipe/ingredient/user;
+    GoodNight now on an injected RestClient too. Wired over the shared network.
+[x] Distributed tracing: Micrometer Tracing -> Zipkin (:9411 in compose).
+    Detail: ../IngredientCatalogue/CHANGES.md -> "Update - 2026-08-30: Phase 2"
+    and "Update - 2026-09-08: Phase 2 closeout".
+    - Boot 4 needs 3 tracing modules + the brave BRIDGE dep
+      (micrometer-tracing-bridge-brave) - without it the NoopTracer silently
+      takes over. Fixed.
+    - spring-boot-zipkin 4.1.x's ZipkinHttpClientSender (JDK HttpClient) fails
+      with ClosedChannelException on connect in-container (curl to the same
+      /api/v2/spans works). Pinning Boot 4.1.1 did NOT fix it. FIX: each service
+      declares a zipkin2.reporter.BytesMessageSender @Bean backed by
+      io.zipkin.reporter2:zipkin-sender-urlconnection (Config/TracingSenderConfig
+      .java) - overrides Boot's @ConditionalOnMissingBean sender with the plain
+      URLConnection one the BFF already uses.
+    VERIFIED 2026-09-08: stack up, traffic driven, Zipkin /api/v2/services =
+    ["ingredient-catalogue","recipe-catalogue","user"], spans present, no drops.
+[x] Prometheus (:9412) + Grafana (:3000, anon admin) in compose; prometheus.yml
+    scrapes the 4 /actuator/prometheus endpoints; provisioned datasources +
+    a system-overview dashboard. Verified: 4 targets UP, Grafana loads.
+[x] CI: a workflow now lives in every repo (services are in separate repos = one
+    workflow per repo). Allergen-Information-System/.github/workflows/ci.yml
+    (Maven test + GHCR image); IngredientCatalogue / RecipeCatalogue / User each got
+    .github/workflows/ci.yml (./gradlew test + GHCR image), from the
+    Projects/infra/ci/gradle-service-ci.yml template. LEFT: push each repo to
+    GitHub + allow package writes (Settings -> Actions). A single pipeline still
+    needs a monorepo/submodules (Phase 3 cleanup).
+[x] Fixed the monolith's Maven wrapper (.mvn/wrapper/maven-wrapper.properties
+    restored; ./mvnw works).
+[x] Dockerfile parallel-build fix: each catalogue's Gradle cache mount got a
+    distinct id= (was deadlocking on a shared journal lock).
+[x] Contract tests: each service (IngredientCatalogue, RecipeCatalogue, User) has an
+    OpenApiContractTest - swagger-request-validator runs 9/9/10 real request/
+    response pairs through MockMvc and validates both against the checked-in
+    static/openapi.yaml, so controller drift from the published contract breaks
+    the build. All 28 pass. Forced fixing: openapi 3.1.0 -> 3.0.3 (the validator
+    misreads 3.1 array params), flattened every allOf (validator treats each
+    branch as closed), and a couple of pre-existing YAML syntax bugs in RC's
+    spec. A dedicated BFF<->catalogue wire test wasn't added - the BFF client
+    records are covered by RecipeCompositionServiceTest / MockRestServiceServer.
+[x] PROPERLY IMPLEMENT THE TESTS: unit + @DataJpaTest + integration per service.
+    Catalogues + User: integration tests + a @DataJpaTest (repo layer vs real
+    MySQL, so the hand-written tag queries are actually exercised). BFF:
+    composition (4) + security (4, incl. the 502 path). Full suites green -
+    IngredientCatalogue 12, RecipeCatalogue 15, User 14, monolith 24 (mvn surefire
+    forkCount=1, no more OOM). MySQL test image pinned to 8.4 (unpinned latest =
+    9.x broke the monolith's older Testcontainers). Detail:
+    ../IngredientCatalogue/CHANGES.md -> "Update - 2026-08-30 ... Tests".
+[x] Minor: dropped the unused asciidoctor + spring-restdocs wiring from the
+    catalogue builds (+ 7 duplicate tools.jackson deps from the monolith pom).
+    Page JSON: catalogue list endpoints now return PageResponse<T> (a hand-
+    controlled record: content, page, size, totalElements, totalPages, first,
+    last, numberOfElements, empty) instead of Spring Data's internal Page
+    serialization. openapi.yaml PageEnvelope updated to match. Controllers wrap
+    with PageResponse.of(page); the service layer still returns Page<T>.
+
+
+==================================================================
+PHASE 3 - CUTOVER                    [done 2026-09-08 - only 2 dir renames left, see below]
+==================================================================
+Decision: no UI. The server-rendered Thymeleaf CRUD is retired; the product is
+the catalogue JSON APIs + the /bff/** composition endpoints. The monolith is now
+BFF + auth + GoodNight + a landing page, and has NO database.
+Retired code is COMMENTED OUT in place (not deleted) - restore instructions in
+each file's banner. Delete for real once the cutover has settled.
+
+[x] Point the UI+BFF entirely at the services -> UI dropped instead (see above).
+[x] Migrate monolith rows -> SKIPPED. mydatabase held only throwaway CRUD test
+    rows, and the old Recipe (food+ingredient pair) doesn't map to RecipeCatalogue's
+    model. Nothing to migrate; no Flyway needed (monolith has no schema now).
+[x] Retire Food/Ingredient/Recipe from the monolith - all at once:
+    - Models/{Food,Ingredient,Recipe}, Repositories/{Food,Ingredient,Recipe}Repository,
+      Services/BasicService(+Impl): commented out (file kept, body prefixed //).
+    - MainController: Food/Ingredient/Recipe @*Mappings commented; home(),
+      /response, /request kept.
+    - 17 Food/Ingredient/Recipe/Error templates: RETIRED banner, body kept.
+    - pom.xml: spring-boot-starter-data-jpa, mysql-connector-j,
+      spring-boot-docker-compose, spring-boot-testcontainers, testcontainers-*
+      commented out. application.properties: datasource/JPA/Hikari commented.
+    - Tests: BasicServiceImplTest, TestcontainersConfiguration,
+      TestAccessingDataMysqlApplication commented; AllergenInformationSystemTests
+      is now a plain no-DB contextLoads. Full suite: 11 tests, green.
+    - compose: bff datasource env + mysql depends_on removed (../compose.yaml);
+      monolith-local compose.yaml mysql service commented.
+    Verified: mvn clean test green; BFF context starts with no datasource.
+[x] Align Spring Boot versions: monolith 3.5.0 -> 4.1.1 (all four services now on
+    the same line). starter-web -> starter-webmvc + starter-restclient (Boot 4
+    module split - the RestClient.Builder bean moved); spring-security-test ->
+    starter-security-test + starter-webmvc-test; tracing trio + zipkin-sender-
+    urlconnection + config/TracingSenderConfig (same ZipkinHttpClientSender bug);
+    Jackson 2 -> 3 (tools.jackson) in MainController / GoodNightRestClientImpl /
+    its test; @WebMvcTest package move. mvn test green (11). A shared parent
+    POM/BOM was considered and skipped (1 Maven module, 3 Gradle).
+[~] Naming cleanup: "Catelog" -> "Catalogue" DONE in code - git mv'd the package
+    dirs, renamed the entrypoint classes, sed'd every package decl / import /
+    identifier, and fixed settings.gradle.kts / build.gradle.kts / Dockerfile /
+    application.properties / openapi.yaml / HELP.md in both catalogue services;
+    updated ../compose.yaml build paths, TODO.txt, infra/ci/README.md, and every
+    "Catelog" mention in CHANGES.md + the BFF javadoc. Monolith Repositorys/ ->
+    Repositories/ done. Both catalogue test suites green after the rename.
+    LEFT (can't be done from this session - the harness holds these dirs as
+    working directories): rename the two project ROOT folders. From Projects/ :
+        mv IngredientCatelog IngredientCatalogue
+        mv RecipeCatelog    RecipeCatalogue
+    All file *references* already point at the new names, so run those two and
+    everything lines up. (com.allergen_info_service vs com.example.* left as-is.)
+
+
+==================================================================
+PHASE 4 - ADVANCED FEATURES  (layered on the split system)
+==================================================================
+Track chosen: foundations -> calculators first. Detail:
+../IngredientCatalogue/CHANGES.md -> "Update - 2026-09-08: Phase 4".
+
+[x] Structured quantities (calculator prereq): RecipeCatalogue RecipeIngredient
+    keeps free-text `quantity` for display + new `amount` (Double) + `unit`
+    (Model/Unit enum: mass->g, volume->ml, count; lenient parse; toBase()).
+    V2 migration, DTOs, openapi, tests. 30 green.
+[x] Nutritional facts (data model + a source): IngredientCatalogue `Nutrition`
+    @Embeddable on Ingredient (kcal/protein/carbs/fat/fiber/sugar/sodium per
+    basisGrams, default 100) + PUT /api/ingredients/{id}/nutrition. Static
+    source: `nutrition_reference` table, Flyway-seeded (V3, 44 common foods per
+    100g) + GET /api/nutrition-reference[?name=]. V2/V3 migrations, tests.
+[x] Nutritional-facts calculator: GET /bff/recipes/{id}/nutrition?servings=N ->
+    per-line contribution + total + perServing. Uncountable lines (volume/count
+    unit, no nutrition data, unknown id, no structured amount) listed with a
+    note, not summed. bff/RecipeCalculatorService + Controller + Units helper;
+    RecipeCatalogueClient/IngredientCatalogueClient records extended.
+[x] Calorie calculator: GET /bff/recipes/{id}/calories?servings=N (kcal slice).
+[x] Portion calculator: GET /bff/recipes/{id}/portions?scale=X | anchor trio
+    (anchorIngredientId+anchorAmount+anchorUnit). Scales numeric line amounts.
+    10 new tests; monolith suite 21 green. Live-stack round-trip still pending.
+[x] Random recipe selector: GET /api/recipes/random (optional name/tag/match/
+    ingredientId filters, same as list; 404 if empty). count + random offset,
+    no ORDER BY RAND(). RC 32 green.
+[x] Load ingredients/recipes from CSV: POST /api/ingredients/import +
+    POST /api/recipes/import (both multipart, always 200 + ImportResult with
+    per-row errors, each row its own tx). Hand-rolled Csv.java per service
+    (commons-csv not in the BOM). IC 28, RC 34 green.
+[x] Front end: Projects/UI - a standalone Spring Boot 4.1.1 + Thymeleaf service
+    (:8081) reusing the retired templates' cherry-blossom theme. Pages:
+    dashboard, login/register, ingredients (list/detail/form + nutrition edit),
+    tags (list/create/merge), nutrition reference, recipes (search + "surprise
+    me" random, composed detail with restriction-conflict highlighting, rich
+    create/edit form), the 3 calculators, account (profile/password/restrictions/
+    favourites), CSV import. Own HttpSession; logs into the BFF and relays the
+    JSESSIONID for /bff/** calls; calls the catalogues + User directly otherwise.
+    4 typed clients + a Units helper (mirror of RecipeCatalogue's enum). Dockerfile
+    + compose entry + CI. 5 tests green.
+[ ] RAG portion: parse free-text recipes -> structured RecipeCatalogue JSON (LLM;
+    read ../claude-api reference first; own service or BFF module).
+[ ] Webcrawler to find recipes online -- scope first: schema.org/Recipe JSON-LD
+    only, honour robots.txt, rate-limit, store source URL. Or defer.
+
+
+==================================================================
+PHASE 5 - DEPLOY
+==================================================================
+[ ] Connect to AWS and deploy
+[ ] Standardise image builds (Buildpacks / Jib); k8s manifests / Helm if
+    going beyond compose
+[ ] Auth hardening: nothing (incl. /actuator) is currently protected
+
+
+------------------------------------------------------------------
+PORT / SCHEMA REFERENCE
+------------------------------------------------------------------
+  Allergen (UI+BFF)     8080    (session-ish data only, at the end)
+  IngredientCatalogue     8082    MySQL 3307    (unified Ingredient/Food)
+  RecipeCatalogue         8083    MySQL 3308
+  User                  8084    MySQL 3309
+  GoodNight             8085

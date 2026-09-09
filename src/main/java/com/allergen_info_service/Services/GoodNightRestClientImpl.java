@@ -1,58 +1,57 @@
 package com.allergen_info_service.Services;
 
-import com.allergen_info_service.AllergenInformationSystem;
-import com.fasterxml.jackson.databind.JsonNode;
-//import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;  // Jackson 3 (Boot 4 default)
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Bean;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
-import org.springframework.web.client.RestTemplate;
+import org.springframework.web.client.RestClientException;
 
+/**
+ * Client for the GoodNightWorld tester service. Uses the Boot-auto-configured
+ * {@link RestClient.Builder}; base URL from {@code goodnight.url} (env
+ * {@code GOODNIGHT_URL}). Downstream failures are logged and swallowed — this is
+ * a tester, not a critical dependency.
+ */
 @Service
 public class GoodNightRestClientImpl implements GoodNightRestClient {
-    private static final Logger log = LoggerFactory.getLogger(AllergenInformationSystem.class);
 
-    @Value("${goodnight.url:http://localhost:8085}")
-    private String goodNightUrl;
+    private static final Logger log = LoggerFactory.getLogger(GoodNightRestClientImpl.class);
 
-    public void getNight(){
-        RestTemplate template = new RestTemplate();
+    private final RestClient http;
+
+    public GoodNightRestClientImpl(RestClient.Builder builder,
+                                   @Value("${goodnight.url:http://localhost:8085}") String goodNightUrl) {
+        this.http = builder.baseUrl(goodNightUrl).build();
+    }
+
+    public void getNight() {
         try {
-            ResponseEntity<String> response = template.getForEntity(goodNightUrl + "/night", String.class);
-            log.info("Response from /night endpoint: {}", response.getBody());
-        } catch (Exception e) {
-            log.error("Error calling /night endpoint at {}", goodNightUrl, e);
+            String body = http.get().uri("/night").retrieve().body(String.class);
+            log.info("Response from /night endpoint: {}", body);
+        } catch (RestClientException e) {
+            log.error("Error calling /night endpoint", e);
         }
     }
 
-    public void fatter(){
-        RestTemplate template = new RestTemplate();
+    public void fatter() {
         try {
-            ResponseEntity<Object> response = template.getForEntity(goodNightUrl + "/fat", Object.class);
-            log.info("Response from /fat endpoint: {}", response.getBody());
-        } catch (Exception e) {
-            log.error("Error calling /fat endpoint at {}", goodNightUrl, e);
+            Object body = http.get().uri("/fat").retrieve().body(Object.class);
+            log.info("Response from /fat endpoint: {}", body);
+        } catch (RestClientException e) {
+            log.error("Error calling /fat endpoint", e);
         }
     }
 
-    public String getSnack(JsonNode rawJson){
-        RestTemplate restTemplate = new RestTemplate();
+    public String getSnack(JsonNode rawJson) {
         try {
-            ResponseEntity<String> response = restTemplate.postForEntity(
-                goodNightUrl + "/snack", 
-                rawJson, 
-                String.class
-            );
-            log.info("Response from /snack endpoint: {}", response.getBody());
-            return response.getBody();
-        } catch (Exception e) {
-            log.error("Error calling /snack endpoint at {}", goodNightUrl, e);
+            String body = http.post().uri("/snack").body(rawJson).retrieve().body(String.class);
+            log.info("Response from /snack endpoint: {}", body);
+            return body;
+        } catch (RestClientException e) {
+            log.error("Error calling /snack endpoint", e);
             return "Error: " + e.getMessage();
         }
     }
-
 }

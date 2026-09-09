@@ -1,25 +1,28 @@
+# Phase 3 cutover: the BFF has no database. The `mysql` service and the app's
+# datasource wiring are retired (kept commented, not deleted). For the full
+# system use ../compose.yaml; this file just runs the BFF + GoodNight.
 services:
-  mysql:
-    image: 'mysql:latest'
-    container_name: allergen-mysql
-    environment:
-      - 'MYSQL_DATABASE=mydatabase'
-      - 'MYSQL_PASSWORD=secret'
-      - 'MYSQL_ROOT_PASSWORD=verysecret'
-      - 'MYSQL_USER=myuser'
-    ports:
-      - '3306:3306'
-    volumes:
-      - mysql-data:/var/lib/mysql
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pverysecret"]
-      interval: 5s
-      timeout: 3s
-      retries: 20
-      start_period: 30s
-    networks:
-      - allergen-network
-    restart: unless-stopped
+#  mysql:
+#    image: 'mysql:8.4'
+#    container_name: allergen-mysql
+#    environment:
+#      - 'MYSQL_DATABASE=mydatabase'
+#      - 'MYSQL_PASSWORD=secret'
+#      - 'MYSQL_ROOT_PASSWORD=verysecret'
+#      - 'MYSQL_USER=myuser'
+#    ports:
+#      - '3306:3306'
+#    volumes:
+#      - mysql-data:/var/lib/mysql
+#    healthcheck:
+#      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pverysecret"]
+#      interval: 5s
+#      timeout: 3s
+#      retries: 20
+#      start_period: 30s
+#    networks:
+#      - allergen-network
+#    restart: unless-stopped
 
   app:
     build:
@@ -27,14 +30,14 @@ services:
       dockerfile: Dockerfile
     container_name: allergen-app
     depends_on:
-      mysql:
-        condition: service_healthy
+#      mysql:
+#        condition: service_healthy
       goodnightworld:
         condition: service_started
     environment:
-      - 'SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/mydatabase?allowPublicKeyRetrieval=true&useSSL=false'
-      - 'SPRING_DATASOURCE_USERNAME=myuser'
-      - 'SPRING_DATASOURCE_PASSWORD=secret'
+#      - 'SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/mydatabase?allowPublicKeyRetrieval=true&useSSL=false'
+#      - 'SPRING_DATASOURCE_USERNAME=myuser'
+#      - 'SPRING_DATASOURCE_PASSWORD=secret'
       - 'GOODNIGHT_URL=http://goodnightworld:8085'
     ports:
       - '8080:8080'

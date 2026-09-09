@@ -1,11 +1,11 @@
 package com.allergen_info_service.Controllers;
 
-import com.allergen_info_service.Models.Food;
-import com.allergen_info_service.Models.Ingredient;
-import com.allergen_info_service.Services.BasicServiceImpl;
+// Phase 3 cutover: Food/Ingredient/Recipe CRUD retired (owned by the catalogue services now).
+// import com.allergen_info_service.Models.Food;
+// import com.allergen_info_service.Models.Ingredient;
+// import com.allergen_info_service.Services.BasicServiceImpl;
 import com.allergen_info_service.Services.GoodNightRestClientImpl;
-//import tools.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;  // Jackson 3 (Boot 4 default)
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -38,8 +38,9 @@ import org.springframework.ui.Model;
 //@RequestMapping(path = "/")
 public class MainController {
     // Autowired injects the necessary dependencies allowing for the creation of objects without using "new"
-    @Autowired
-    BasicServiceImpl service;
+    // Phase 3 cutover: BasicServiceImpl retired.
+    // @Autowired
+    // BasicServiceImpl service;
     @Autowired
     GoodNightRestClientImpl night;
 
@@ -90,6 +91,12 @@ public class MainController {
     public String home(){
         return "home";
     }
+
+    /* ===== Phase 3 cutover (2026-09-08): Food / Ingredient / Recipe CRUD retired =====
+     * These routes rendered the server-side Thymeleaf CRUD over local tables. That
+     * data is now owned by IngredientCatalogue and RecipeCatalogue; the monolith keeps
+     * only the landing page, the GoodNight tester, and the /bff/** composition API.
+     * Kept commented (not deleted) per request.
 
     @GetMapping("/newFood")
     public String newFoodForm(Model model) {
@@ -214,4 +221,5 @@ public class MainController {
     public String modifyRecipe(@RequestParam long index, @RequestParam long foodId, @RequestParam long ingredientId){
         return service.modifyRecipe(index, foodId, ingredientId);
     }
+     * ===== end Phase 3 cutover block ===== */
 }
