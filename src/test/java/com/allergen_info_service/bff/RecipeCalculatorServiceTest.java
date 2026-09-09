@@ -191,6 +191,17 @@ class RecipeCalculatorServiceTest {
     }
 
     @Test
+    void rejectsNonFiniteScaleAndNonPositiveServings() {
+        stubRecipe(RECIPE);
+        assertThatThrownBy(() -> calc.portions(1, Double.NaN, null, null, null))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("finite");
+        assertThatThrownBy(() -> calc.nutrition(1, 0))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("servings");
+        assertThatThrownBy(() -> calc.calories(1, -5))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("servings");
+    }
+
+    @Test
     void unknownRecipeSurfacesAsNotFound() {
         recipeServer.expect(requestTo("/api/recipes/1")).andRespond(withStatus(org.springframework.http.HttpStatus.NOT_FOUND));
         assertThatThrownBy(() -> calc.nutrition(1, 1))

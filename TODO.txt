@@ -419,21 +419,29 @@ Track chosen: foundations -> calculators first. Detail:
 
 
 ==================================================================
-PHASE 5 - DEPLOY / HARDEN
+PHASE 5 - DEPLOY / HARDEN                                  [in progress]
 ==================================================================
 [ ] Connect to AWS and deploy
 [ ] Standardise image builds (Buildpacks / Jib); k8s manifests / Helm if
     going beyond compose
-[ ] Security hardening — see ../IngredientCatalogue/SECURITY.md. None fixed:
-      C1  User service is anyRequest().permitAll() (unauth read/modify/delete
-          of any account)  <- top item; the "forward identity" task above
-      C2  catalogues have no security at all
-      H1  every port binds 0.0.0.0        H2  no CSRF / SameSite on the UI
-      H3  Grafana anon Admin              H4  MySQL root/verysecret in-repo, :3306 open
-      M1  session not rotated on login    M2  login timing enumeration
-      M3  register enumeration            M4  no rate limiting anywhere
-      M5  UI missing security headers     M6  ?sort= -> 500 (easy: map to 400)
-    Nothing on /actuator is protected either.
+[~] Security hardening — see ../IngredientCatalogue/SECURITY.md "Remediation log".
+    Batch 1 done 2026-09-09 (mechanical):
+      [x] H1  root compose: all ports -> 127.0.0.1 except the UI (8081)
+      [x] H3  Grafana anon Admin -> Viewer; login form back; admin/admin (env)
+      [x] M2  constant-time authenticate (dummy BCrypt on unknown user)
+      [x] M6  PropertyReferenceException (bad ?sort=) -> 400 in catalogue-common
+      [x] L2  BFF calculators reject non-finite scale / servings<1 with 400
+    Still open:
+      [ ] C1  User service anyRequest().permitAll() — unauth read/modify/delete
+              of any account  <- top item
+      [ ] C2  catalogues have no security at all
+              (C1/C2 = "BFF forwards a verified identity; services enforce it")
+      [ ] H2/M1/M5  spring-boot-starter-security on the UI: CSRF, headers,
+              SameSite cookie, session rotation on login
+      [ ] H4  MySQL creds -> untracked .env; non-trivial values
+      [ ] M3  register enumeration     M4  rate limiting on auth endpoints
+      [ ] module-local compose.yaml files not yet 127.0.0.1-bound
+      [ ] nothing on /actuator is protected
 
 
 ------------------------------------------------------------------

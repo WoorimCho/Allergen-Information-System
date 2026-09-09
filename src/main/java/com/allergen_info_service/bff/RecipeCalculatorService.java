@@ -38,7 +38,10 @@ public class RecipeCalculatorService {
     // ── nutrition ────────────────────────────────────────────────────────────
 
     public NutritionResult nutrition(long recipeId, int servings) {
-        int serv = Math.max(servings, 1);
+        if (servings < 1) {
+            throw new IllegalArgumentException("servings must be >= 1");
+        }
+        int serv = servings;
         RecipeCatalogueClient.Recipe recipe = recipes.getRecipe(recipeId);
         Map<Long, IngredientCatalogueClient.Ingredient> resolved = resolveLineIngredients(recipe);
 
@@ -129,8 +132,8 @@ public class RecipeCalculatorService {
             throw new IllegalArgumentException("give either scale or the anchor params, not both");
         }
         if (scale != null) {
-            if (scale <= 0) {
-                throw new IllegalArgumentException("scale must be > 0");
+            if (!Double.isFinite(scale) || scale <= 0) {
+                throw new IllegalArgumentException("scale must be a finite number > 0");
             }
             return scale;
         }
