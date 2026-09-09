@@ -431,13 +431,16 @@ PHASE 5 - DEPLOY / HARDEN                                  [in progress]
       [x] M2  constant-time authenticate (dummy BCrypt on unknown user)
       [x] M6  PropertyReferenceException (bad ?sort=) -> 400 in catalogue-common
       [x] L2  BFF calculators reject non-finite scale / servings<1 with 400
+    Batch 2 done 2026-09-09 (inter-service HMAC auth):
+      [x] C1  User/UserInternalAuthFilter — HMAC X-Internal-Auth on every
+              /api/**; acting user must match /api/accounts/{id}
+      [x] C2  catalogue-common/InternalAuthFilter (both catalogues) +
+              recipe-crawler/InternalAuthFilter — HMAC required on /api/** writes
+              (reads open). Outbound signer on the BFF / UI / crawler RestClients;
+              acting user from BffPrincipal / session CurrentUser / none.
     Still open:
-      [ ] C1  User service anyRequest().permitAll() — unauth read/modify/delete
-              of any account  <- top item
-      [ ] C2  catalogues have no security at all
-              (C1/C2 = "BFF forwards a verified identity; services enforce it")
       [ ] H2/M1/M5  spring-boot-starter-security on the UI: CSRF, headers,
-              SameSite cookie, session rotation on login
+              SameSite cookie, session rotation on login  <- next
       [ ] H4  MySQL creds -> untracked .env; non-trivial values
       [ ] M3  register enumeration     M4  rate limiting on auth endpoints
       [ ] module-local compose.yaml files not yet 127.0.0.1-bound
