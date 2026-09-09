@@ -1,5 +1,6 @@
 package com.allergen_info_service.Services;
 
+import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -28,7 +29,7 @@ class GoodNightRestClientImplTest {
     void setUp() {
         RestClient.Builder builder = RestClient.builder();
         server = MockRestServiceServer.bindTo(builder).build();
-        client = new GoodNightRestClientImpl(builder, "http://goodnight");
+        client = new GoodNightRestClientImpl(builder, CircuitBreakerRegistry.ofDefaults(), "http://goodnight");
     }
 
     @Test

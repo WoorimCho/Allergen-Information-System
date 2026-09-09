@@ -1,5 +1,7 @@
 package com.allergen_info_service.Services;
 
+import com.allergen_info_service.config.DownstreamResilience;
+import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import tools.jackson.databind.JsonNode;  // Jackson 3 (Boot 4 default)
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -10,9 +12,10 @@ import org.springframework.web.client.RestClientException;
 
 /**
  * Client for the GoodNightWorld tester service. Uses the Boot-auto-configured
- * {@link RestClient.Builder}; base URL from {@code goodnight.url} (env
- * {@code GOODNIGHT_URL}). Downstream failures are logged and swallowed — this is
- * a tester, not a critical dependency.
+ * {@link RestClient.Builder} (short connect/read timeout via
+ * {@code spring.http.client.*}) plus a "goodnight" circuit breaker; base URL
+ * from {@code goodnight.url} (env {@code GOODNIGHT_URL}). Downstream failures are
+ * logged and swallowed — this is a tester, not a critical dependency.
  */
 @Service
 public class GoodNightRestClientImpl implements GoodNightRestClient {
@@ -22,8 +25,11 @@ public class GoodNightRestClientImpl implements GoodNightRestClient {
     private final RestClient http;
 
     public GoodNightRestClientImpl(RestClient.Builder builder,
+                                   CircuitBreakerRegistry breakers,
                                    @Value("${goodnight.url:http://localhost:8085}") String goodNightUrl) {
-        this.http = builder.baseUrl(goodNightUrl).build();
+        this.http = builder.baseUrl(goodNightUrl)
+                .requestInterceptor(DownstreamResilience.forDownstream(breakers, "goodnight"))
+                .build();
     }
 
     public void getNight() {

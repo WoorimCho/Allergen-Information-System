@@ -136,6 +136,20 @@
             <artifactId>micrometer-registry-prometheus</artifactId>
             <scope>runtime</scope>
         </dependency>
+
+        <!-- Resilience: per-downstream circuit breakers on the RestClient beans.
+             Core + micrometer only (not resilience4j-spring-boot3, whose
+             auto-config targets Boot 3). Not in the Boot BOM -> pin the version. -->
+        <dependency>
+            <groupId>io.github.resilience4j</groupId>
+            <artifactId>resilience4j-circuitbreaker</artifactId>
+            <version>2.3.0</version>
+        </dependency>
+        <dependency>
+            <groupId>io.github.resilience4j</groupId>
+            <artifactId>resilience4j-micrometer</artifactId>
+            <version>2.3.0</version>
+        </dependency>
     </dependencies>
 
 	<build>

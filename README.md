@@ -72,6 +72,7 @@ Local (needs the catalogues + User running):
 | `USER_SERVICE_URL` | `http://localhost:8084` | |
 | `GOODNIGHT_URL` | `http://localhost:8085` | |
 | `ZIPKIN_ENDPOINT` | `http://localhost:9411/api/v2/spans` | tracing (URLConnection sender — see `config/TracingSenderConfig`) |
+| `DOWNSTREAM_CONNECT_TIMEOUT` / `DOWNSTREAM_READ_TIMEOUT` | `2s` / `5s` | outbound HTTP timeouts |
 
 No datasource — the `SPRING_DATASOURCE_*` lines in `compose.yaml` are commented
 out.
@@ -79,7 +80,8 @@ out.
 ## Tests
 
 ```bash
-./mvnw test        # 21: context, BFF security, composition, calculators, GoodNight client
+./mvnw test        # 26: context, BFF security, composition, calculators,
+                   #     GoodNight client, circuit-breaker interceptor
 ```
 
 ## Stack notes
@@ -90,6 +92,13 @@ out.
 - Distributed tracing to Zipkin via `zipkin-sender-urlconnection` + a
   `BytesMessageSender` bean (Boot 4.1's JDK-HttpClient sender fails in
   containers).
+- **Resilience** — every downstream `RestClient` has a short connect/read
+  timeout (`spring.http.clients.*`) and a per-service **circuit breaker**
+  (`config/DownstreamResilience` + `CircuitBreakerInterceptor`, resilience4j).
+  A connect/read timeout or a 5xx counts as a fault; a 4xx doesn't. When a
+  breaker opens, the call fails fast as a 502 instead of hanging the composed
+  request. Breaker state is on `/actuator/prometheus`
+  (`resilience4j_circuitbreaker_*`).
 
 ## Security
 
