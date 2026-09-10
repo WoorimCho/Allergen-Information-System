@@ -153,8 +153,13 @@ Per-slice extraction recipe (repeat for each domain):
 [x] Batch lookup GET /api/recipes/by-ids?id=..  (for BFF favourites list)
 [x] 12 tests green; verified as a container stack
 [x] structured quantity/units for the Phase 4 calculators (V2: amount + Unit enum)
-[ ] Later: promote time/difficulty to fields if range-filter/sort is needed;
-    @EntityGraph for the list endpoint's N+1
+[x] List endpoint N+1 fixed 2026-09-09: hibernate.default_batch_fetch_size=64
+    (RecipeResponse.from pulls steps + step tools + ingredients + replacements +
+    tags per row). Chose batch fetching over @EntityGraph so paginated search
+    stays a real SQL page - a collection join-fetch would force in-memory paging.
+    Guarded by RecipeListQueryCountDataJpaTest (page of 8 -> <= 12 queries).
+[ ] Later: promote time/difficulty to fields IF range-filter/sort is ever needed.
+    Still just tags (difficulty:easy, time:90min); no caller needs range queries.
 
 --- UI + BFF  (the evolved monolith - Option 3) ---
 [x] BFF composition layer started: package com.allergen_info_service.bff -
@@ -172,8 +177,12 @@ Per-slice extraction recipe (repeat for each domain):
       [x] ...+ GET /bff/accounts/{id}/favorite-recipes (summaries; own-account only)
       [x] compose the pages from the catalogues -- resolved differently: the UI
           is its own service and calls the catalogues + BFF directly (no local repos)
-      [ ] smarter diet semantics (no "recipe IS vegan" inference yet);
-          parallelise the BFF's downstream calls   [polish]
+      [x] parallelise the BFF's downstream calls (2026-09-09): the personalised
+          compose() fans out recipe + restrictions + favourite-alternatives on a
+          shared pool (bffDownstreamExecutor) instead of three serial round trips;
+          then joins in priority order so a bad recipe id still wins the error.
+          Executor wrapped for SecurityContext (HMAC acting user) + trace context.
+      [ ] smarter diet semantics (no "recipe IS vegan" inference yet)   [polish]
 [x] Auth = BFF-enforced session (decision locked). BffSecurityConfig: /bff/**
     requires a session; POST /bff/login delegates to the User service; account
     id read from @AuthenticationPrincipal; own-account checks -> 403. Legacy
@@ -186,7 +195,10 @@ Per-slice extraction recipe (repeat for each domain):
     recipe-crawler): spring.http.clients.* (Boot 4.1 plural key) + a resilience4j
     ClientHttpRequestInterceptor per target; OPEN -> fast 502/503 instead of a
     hung request. Breaker state on /actuator/prometheus.
-[ ] Add caching (@Cacheable, short TTL) to IngredientCatalogueClient.byIds  [polish]
+[x] Caching on IngredientCatalogueClient.byIds (2026-09-09): @Cacheable
+    "ingredientsByIds", Caffeine, 45s expire-after-write, keyed by the id set.
+    A composed view + its 3 calculators + every portion-slider drag now share
+    one downstream call; an ingredient edit still shows through within seconds.
 [ ] Forward identity to the services so they can verify it themselves
     (signed token on BFF->service calls) -- hardening; = SECURITY.md C1
 
@@ -211,8 +223,13 @@ Per-slice extraction recipe (repeat for each domain):
 [x] Access control: the BFF enforces "your own account only"; direct calls to
     this service are unauthenticated (trusted network). Verifying a forwarded
     identity here is the optional hardening step (see UI + BFF).
-[ ] Later (v2): rate limiting on register/authenticate; password reset
-    (email verification dropped — email is optional now)
+[ ] Later (v2): rate limiting on register/authenticate  (= Phase 5 M4).
+[ ] Password reset: BLOCKED on an out-of-band channel. A reset needs a way to
+    prove identity that isn't "knows the username" - normally an email link/OTP -
+    and email is optional here with nothing sent to it. A username-only reset
+    would be an account-takeover hole, not a feature. Revisit if/when a mailer
+    (or admin-reset console) exists. Logged-in change already works:
+    PUT /api/accounts/{id}/password.
 
 --- Split checklist (from TODO Lst) ---
 [x] Backend: split across the catalogue services + User

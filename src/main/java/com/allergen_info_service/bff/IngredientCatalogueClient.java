@@ -1,5 +1,6 @@
 package com.allergen_info_service.bff;
 
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.web.client.RestClient;
 
@@ -26,7 +27,17 @@ public class IngredientCatalogueClient {
         this.http = http;
     }
 
-    /** One call for many ids. Ids that don't exist are simply absent from the returned map. */
+    /**
+     * One call for many ids. Ids that don't exist are simply absent from the
+     * returned map, which is unmodifiable — callers only read it.
+     *
+     * <p>Cached under {@value CacheConfig#INGREDIENTS_BY_IDS} keyed by the id
+     * <em>set</em> (a {@code TreeSet}, so call order doesn't matter), with a
+     * short write-expiry set in {@code application.properties}. A composed recipe
+     * view and the three calculators over the same recipe hit this with the same
+     * ids; the portion slider hits it on every drag.
+     */
+    @Cacheable(cacheNames = CacheConfig.INGREDIENTS_BY_IDS, key = "new java.util.TreeSet(#ids)")
     public Map<Long, Ingredient> byIds(Collection<Long> ids) {
         if (ids.isEmpty()) {
             return Map.of();
@@ -36,7 +47,7 @@ public class IngredientCatalogueClient {
                 .retrieve()
                 .body(INGREDIENT_LIST);
         return (found == null ? List.<Ingredient>of() : found).stream()
-                .collect(Collectors.toMap(Ingredient::id, Function.identity(), (a, b) -> a));
+                .collect(Collectors.toUnmodifiableMap(Ingredient::id, Function.identity(), (a, b) -> a));
     }
 
     public record Ingredient(Long id, String name, List<Tag> tags, Nutrition nutrition, Double densityGPerMl) {

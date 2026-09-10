@@ -9,6 +9,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutorService;
 
 /**
  * The recipe/ingredient "join" a monolith would do in SQL: fetch a recipe from
@@ -30,13 +33,16 @@ public class RecipeCompositionService {
     private final RecipeCatalogueClient recipes;
     private final IngredientCatalogueClient ingredients;
     private final UserServiceClient users;
+    private final ExecutorService downstream;
 
     public RecipeCompositionService(RecipeCatalogueClient recipes,
                                     IngredientCatalogueClient ingredients,
-                                    UserServiceClient users) {
+                                    UserServiceClient users,
+                                    ExecutorService bffDownstreamExecutor) {
         this.recipes = recipes;
         this.ingredients = ingredients;
         this.users = users;
+        this.downstream = bffDownstreamExecutor;
     }
 
     public RecipeView compose(long recipeId) {
@@ -44,13 +50,28 @@ public class RecipeCompositionService {
     }
 
     public RecipeView compose(long recipeId, Long accountId) {
-        RecipeCatalogueClient.Recipe recipe = recipes.getRecipe(recipeId);
-
+        RecipeCatalogueClient.Recipe recipe;
         Set<String> restrictions = Set.of();
         Map<Long, Long> preferredByIngredient = Map.of();
-        if (accountId != null) {
-            restrictions = users.restrictions(accountId);
-            preferredByIngredient = preferredReplacements(users.favoriteAlternatives(accountId), recipeId);
+
+        if (accountId == null) {
+            recipe = recipes.getRecipe(recipeId);
+        } else {
+            // The recipe and this account's restrictions / favourite substitutions
+            // don't depend on each other — fetch all three at once, then join in
+            // priority order so a bad recipe id still surfaces as the failure
+            // (as it did when these ran one after another).
+            var recipeCall = CompletableFuture.supplyAsync(() -> recipes.getRecipe(recipeId), downstream);
+            var restrictionsCall = CompletableFuture.supplyAsync(() -> users.restrictions(accountId), downstream);
+            var alternativesCall =
+                    CompletableFuture.supplyAsync(() -> users.favoriteAlternatives(accountId), downstream);
+            try {
+                recipe = recipeCall.join();
+                restrictions = restrictionsCall.join();
+                preferredByIngredient = preferredReplacements(alternativesCall.join(), recipeId);
+            } catch (CompletionException e) {
+                throw unwrap(e);
+            }
         }
 
         Set<Long> idsToResolve = new LinkedHashSet<>();
@@ -111,6 +132,18 @@ public class RecipeCompositionService {
                 .map(r -> new RecipeSummary(r.id(), r.name(), r.creator(), r.version(),
                         nullToEmpty(r.tags()).stream().map(RecipeCatalogueClient.Tag::name).toList()))
                 .toList();
+    }
+
+    /** Re-throw the real downstream failure (a {@code CompletionException} would dodge the BFF handler). */
+    private static RuntimeException unwrap(CompletionException e) {
+        Throwable cause = e.getCause();
+        if (cause instanceof RuntimeException runtime) {
+            return runtime;
+        }
+        if (cause instanceof Error error) {
+            throw error;
+        }
+        return cause == null ? e : new IllegalStateException(cause);
     }
 
     private static Map<Long, Long> preferredReplacements(

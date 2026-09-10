@@ -80,10 +80,25 @@ out.
 ## Tests
 
 ```bash
-./mvnw test        # 28: context, BFF security, composition, calculators
-                   #     (incl. volume↔mass via density), GoodNight client,
-                   #     circuit-breaker interceptor
+./mvnw test        # 30: context, BFF security, composition (incl. the parallel
+                   #     fan-out), calculators (incl. volume↔mass via density),
+                   #     GoodNight client, circuit-breaker interceptor
 ```
+
+## Performance
+
+- **`IngredientCatalogueClient.byIds` is cached** — `@Cacheable("ingredientsByIds")`,
+  Caffeine, `expireAfterWrite=45s`, keyed by the id *set*. A composed recipe view
+  and its nutrition / calorie / portion calculators all resolve the same line
+  ingredients, and the portion slider re-hits `by-ids` on every drag; the cache
+  folds those into one call. Tune via `spring.cache.caffeine.spec`.
+- **The personalised compose fans out.** `RecipeCompositionService.compose(id,
+  accountId)` fetches the recipe, the account's restrictions, and its favourite
+  substitutions concurrently on `bffDownstreamExecutor` (three serial round trips
+  → one), then joins recipe-first so a bad id still wins the error. The pool
+  propagates the `SecurityContext` (for the outbound HMAC acting-user) and the
+  trace context. The no-account path and the calculators stay sequential — there
+  the second call needs the first call's result.
 
 ## Stack notes
 

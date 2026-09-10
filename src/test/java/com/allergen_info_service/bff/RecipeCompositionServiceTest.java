@@ -8,6 +8,10 @@ import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
 
+import java.util.List;
+import java.util.concurrent.AbstractExecutorService;
+import java.util.concurrent.TimeUnit;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hamcrest.Matchers.startsWith;
@@ -37,7 +41,42 @@ class RecipeCompositionServiceTest {
         service = new RecipeCompositionService(
                 new RecipeCatalogueClient(recipeBuilder.build()),
                 new IngredientCatalogueClient(ingredientBuilder.build()),
-                new UserServiceClient(userBuilder.build()));
+                new UserServiceClient(userBuilder.build()),
+                new SameThreadExecutorService());
+    }
+
+    /**
+     * Runs each submitted task inline, in submission order — so the parallel
+     * fan-out stays deterministic against the (order-sensitive, single-threaded)
+     * {@link MockRestServiceServer}.
+     */
+    private static final class SameThreadExecutorService extends AbstractExecutorService {
+        private volatile boolean shutdown;
+
+        @Override public void execute(Runnable command) {
+            command.run();
+        }
+
+        @Override public void shutdown() {
+            shutdown = true;
+        }
+
+        @Override public List<Runnable> shutdownNow() {
+            shutdown = true;
+            return List.of();
+        }
+
+        @Override public boolean isShutdown() {
+            return shutdown;
+        }
+
+        @Override public boolean isTerminated() {
+            return shutdown;
+        }
+
+        @Override public boolean awaitTermination(long timeout, TimeUnit unit) {
+            return true;
+        }
     }
 
     @Test
@@ -146,6 +185,20 @@ class RecipeCompositionServiceTest {
         recipeServer.expect(requestTo("/api/recipes/404")).andRespond(withStatus(HttpStatus.NOT_FOUND));
 
         assertThatThrownBy(() -> service.compose(404))
+                .isInstanceOf(HttpClientErrorException.NotFound.class);
+    }
+
+    @Test
+    void unknownRecipeSurfacesAsNotFoundOnThePersonalisedPathToo() {
+        // The three calls fan out together; the recipe failure must still win,
+        // unwrapped from the CompletableFuture's CompletionException.
+        recipeServer.expect(requestTo("/api/recipes/404")).andRespond(withStatus(HttpStatus.NOT_FOUND));
+        userServer.expect(requestTo("/api/accounts/5/restrictions"))
+                .andRespond(withSuccess("[]", MediaType.APPLICATION_JSON));
+        userServer.expect(requestTo("/api/accounts/5/favorites/alternatives"))
+                .andRespond(withSuccess("[]", MediaType.APPLICATION_JSON));
+
+        assertThatThrownBy(() -> service.compose(404, 5L))
                 .isInstanceOf(HttpClientErrorException.NotFound.class);
     }
 }
