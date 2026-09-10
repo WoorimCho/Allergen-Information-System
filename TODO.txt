@@ -19,6 +19,9 @@ Since 2026-08-29, in ../IngredientCatalogue/CHANGES.md:
     substring matches ("vegan" finds "diet:vegan"); both catalogues take notTag=
     to exclude ("quick but not vegan"); the UI's recipe/ingredient form fields
     take names (autocomplete), not ids.
+  - Sort-by on the ingredient / recipe / nutrition-reference lists: click a column
+    header (▲/▼), nullable nutrient columns sort empties last. Recipe list has an
+    "include ingredient tags" toggle so tag filters also see inherited tags.
   - BFF polish: IngredientCatalogueClient.byIds is @Cacheable (Caffeine 45s); the
     personalised compose() fans out its 3 downstream reads in parallel.
   - RecipeCatalogue list N+1 fixed (hibernate.default_batch_fetch_size=64).
