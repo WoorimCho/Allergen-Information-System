@@ -134,6 +134,24 @@ class RecipeCalculatorServiceTest {
         assertThat(milk.scaledAmount()).isEqualTo(4.0);              // 2 cup -> 4 cup
         assertThat(milk.scaledGrams()).isEqualTo(946.4);             // 473.2 g -> * 2
         assertThat(milk.scaledMillilitres()).isEqualTo(946.4);
+        assertThat(milk.scaledKcal()).isEqualTo(473.0);             // 946.4 g * 50/100, whole
+
+        // flour: 200 g * 2 = 400 g, 364 kcal/100 g -> 1456
+        assertThat(p.lines().get(1).scaledKcal()).isEqualTo(1456.0);
+        assertThat(p.totalGrams()).isEqualTo(1346.4);               // 946.4 + 400
+        assertThat(p.totalKcal()).isEqualTo(1929.0);                // 473 + 1456
+    }
+
+    @Test
+    void portionsAnchorBridgesVolumeAndWeightViaDensity() {
+        stubRecipe(RECIPE_VOL);
+        stubIngredients(INGREDIENTS_VOL);
+
+        // milk is "2 cup" = 473.2 g at density 1.0; ask for 946.4 g -> scale 2.0
+        RecipeCalculatorService.PortionResult p = calc.portions(1, null, 20L, 946.4, "g");
+
+        assertThat(p.scale()).isEqualTo(2.0);
+        assertThat(p.lines().get(0).scaledAmount()).isEqualTo(4.0);
     }
 
     @Test
@@ -177,15 +195,18 @@ class RecipeCalculatorServiceTest {
 
     @Test
     void portionsRejectsConflictingAndInvalidInput() {
-        // portions() fetches the recipe before validating -> one stub per call, all set up first
+        // portions() fetches the recipe + its ingredients before validating -> one pair of stubs per call
         stubRecipe(RECIPE);
         stubRecipe(RECIPE);
         stubRecipe(RECIPE);
+        stubIngredients(INGREDIENTS);
+        stubIngredients(INGREDIENTS);
+        stubIngredients(INGREDIENTS);
 
         assertThatThrownBy(() -> calc.portions(1, 2.0, 10L, 5.0, "g"))
                 .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("not both");
-        assertThatThrownBy(() -> calc.portions(1, null, 11L, 5.0, "g"))   // milk line is a cup, anchor is g
-                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("different kind of unit");
+        assertThatThrownBy(() -> calc.portions(1, null, 11L, 5.0, "g"))   // mystery-juice line is a cup, anchor is g, no density
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("without a density");
         assertThatThrownBy(() -> calc.portions(1, -1.0, null, null, null))
                 .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("> 0");
     }
@@ -193,6 +214,7 @@ class RecipeCalculatorServiceTest {
     @Test
     void rejectsNonFiniteScaleAndNonPositiveServings() {
         stubRecipe(RECIPE);
+        stubIngredients(INGREDIENTS);
         assertThatThrownBy(() -> calc.portions(1, Double.NaN, null, null, null))
                 .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("finite");
         assertThatThrownBy(() -> calc.nutrition(1, 0))

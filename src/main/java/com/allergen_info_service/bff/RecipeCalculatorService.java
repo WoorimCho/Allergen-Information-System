@@ -103,10 +103,14 @@ public class RecipeCalculatorService {
     public PortionResult portions(long recipeId, Double scale,
                                   Long anchorIngredientId, Double anchorAmount, String anchorUnit) {
         RecipeCatalogueClient.Recipe recipe = recipes.getRecipe(recipeId);
-        double factor = resolveScale(recipe, scale, anchorIngredientId, anchorAmount, anchorUnit);
         Map<Long, IngredientCatalogueClient.Ingredient> resolved = resolveLineIngredients(recipe);
+        double factor = resolveScale(recipe, resolved, scale, anchorIngredientId, anchorAmount, anchorUnit);
 
         List<ScaledLine> lines = new ArrayList<>();
+        double totalGrams = 0;
+        double totalKcal = 0;
+        boolean anyGrams = false;
+        boolean anyKcal = false;
         for (RecipeCatalogueClient.Ingredient line : nullToEmpty(recipe.ingredients())) {
             IngredientCatalogueClient.Ingredient entry = resolved.get(line.ingredientId());
             String name = entry != null ? entry.name() : "unknown ingredient (#" + line.ingredientId() + ")";
@@ -119,14 +123,33 @@ public class RecipeCalculatorService {
             Double scaledGrams = grams.isPresent() ? round1(grams.getAsDouble() * factor) : null;
             Double scaledMillilitres = millilitres == null ? null : round1(millilitres * factor);
 
+            // kcal for the scaled weight, when the ingredient carries per-basis nutrition
+            Double scaledKcal = null;
+            IngredientCatalogueClient.Nutrition n = entry == null ? null : entry.nutrition();
+            if (grams.isPresent() && n != null && n.basisGrams() != null && n.basisGrams() > 0 && n.kcal() != null) {
+                scaledKcal = roundKcal(grams.getAsDouble() * factor / n.basisGrams() * n.kcal());
+            }
+
+            if (scaledGrams != null) {
+                totalGrams += scaledGrams;
+                anyGrams = true;
+            }
+            if (scaledKcal != null) {
+                totalKcal += scaledKcal;
+                anyKcal = true;
+            }
+
             lines.add(new ScaledLine(line.ingredientId(), name, line.amount(), line.unit(),
-                    scaledAmount, scaledGrams, scaledMillilitres, line.quantity(), line.amount() != null));
+                    scaledAmount, scaledGrams, scaledMillilitres, scaledKcal, line.quantity(),
+                    line.amount() != null));
         }
-        return new PortionResult(recipe.id(), recipe.name(), round2(factor), lines);
+        return new PortionResult(recipe.id(), recipe.name(), round2(factor), lines,
+                anyGrams ? round1(totalGrams) : null, anyKcal ? roundKcal(totalKcal) : null);
     }
 
-    private static double resolveScale(RecipeCatalogueClient.Recipe recipe, Double scale,
-                                       Long anchorIngredientId, Double anchorAmount, String anchorUnit) {
+    private double resolveScale(RecipeCatalogueClient.Recipe recipe,
+                                Map<Long, IngredientCatalogueClient.Ingredient> resolved,
+                                Double scale, Long anchorIngredientId, Double anchorAmount, String anchorUnit) {
         boolean anchored = anchorIngredientId != null || anchorAmount != null || anchorUnit != null;
         if (scale != null && anchored) {
             throw new IllegalArgumentException("give either scale or the anchor params, not both");
@@ -151,15 +174,28 @@ public class RecipeCalculatorService {
         if (line.amount() == null || line.unit() == null) {
             throw new IllegalArgumentException("the anchor line has no structured amount to scale from");
         }
-        if (Units.dimension(line.unit()) != Units.dimension(anchorUnit)) {
-            throw new IllegalArgumentException("anchorUnit '" + anchorUnit + "' is a different kind of unit than the recipe's '" + line.unit() + "'");
+
+        // Same kind of unit: a plain base-unit ratio (works without a density — e.g. counts).
+        if (Units.dimension(line.unit()) == Units.dimension(anchorUnit)) {
+            OptionalDouble lineBase = Units.toBase(line.amount(), line.unit());
+            OptionalDouble anchorBase = Units.toBase(anchorAmount, anchorUnit);
+            if (lineBase.isPresent() && anchorBase.isPresent() && lineBase.getAsDouble() != 0) {
+                return anchorBase.getAsDouble() / lineBase.getAsDouble();
+            }
         }
-        OptionalDouble lineBase = Units.toBase(line.amount(), line.unit());
-        OptionalDouble anchorBase = Units.toBase(anchorAmount, anchorUnit);
-        if (lineBase.isEmpty() || anchorBase.isEmpty() || lineBase.getAsDouble() == 0) {
-            throw new IllegalArgumentException("can't convert the anchor to a comparable amount");
+
+        // Volume vs weight: bridge through grams using the anchor ingredient's density.
+        IngredientCatalogueClient.Ingredient entry = resolved.get(anchorIngredientId);
+        Double density = densityFor(entry);
+        OptionalDouble lineGrams = Units.toGrams(line.amount(), line.unit(), density);
+        OptionalDouble anchorGrams = Units.toGrams(anchorAmount, anchorUnit, density);
+        if (lineGrams.isPresent() && anchorGrams.isPresent() && lineGrams.getAsDouble() != 0) {
+            return anchorGrams.getAsDouble() / lineGrams.getAsDouble();
         }
-        return anchorBase.getAsDouble() / lineBase.getAsDouble();
+
+        String who = entry != null ? entry.name() : "ingredient #" + anchorIngredientId;
+        throw new IllegalArgumentException("can't convert between " + anchorUnit + " and the recipe's "
+                + line.unit() + " for " + who + " without a density — set one on that ingredient");
     }
 
     // ── shared ───────────────────────────────────────────────────────────────
@@ -297,15 +333,19 @@ public class RecipeCalculatorService {
 
     /**
      * {@code scaledAmount} is in the line's own {@code unit}; {@code scaledGrams}
-     * / {@code scaledMillilitres} are the volume↔mass equivalents (present only
-     * when a density is known), so the UI can show the amount either way.
+     * / {@code scaledMillilitres} are the volume↔mass equivalents and
+     * {@code scaledKcal} the calories for that weight — all present only when a
+     * density / nutrition figure is known, so the UI can show the amount either
+     * way and total the batch.
      */
     public record ScaledLine(
             Long ingredientId, String name, Double originalAmount, String unit,
-            Double scaledAmount, Double scaledGrams, Double scaledMillilitres,
+            Double scaledAmount, Double scaledGrams, Double scaledMillilitres, Double scaledKcal,
             String quantityText, boolean scaled) {
     }
 
-    public record PortionResult(Long recipeId, String recipeName, double scale, List<ScaledLine> lines) {
+    /** {@code totalGrams} / {@code totalKcal} sum the lines we could weigh — null if none could. */
+    public record PortionResult(Long recipeId, String recipeName, double scale, List<ScaledLine> lines,
+                                Double totalGrams, Double totalKcal) {
     }
 }
