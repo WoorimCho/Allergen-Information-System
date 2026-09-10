@@ -12,7 +12,14 @@ Since 2026-08-29, in ../IngredientCatalogue/CHANGES.md:
   - Timeouts + per-downstream circuit breakers on every RestClient (BFF, UI, crawler).
   - Email is optional on the User service (V3 migration).
   - Ingredient density (g/ml) -> the calculators convert volume <-> mass.
-  - Portion calculator got a live UI slider + a grams/ml/as-written toggle.
+  - Portion calculator got a live UI slider + an as-written/grams/ml/US-volume
+    (cups, tbsp) toggle.
+  - Search ergonomics: tag search is now a substring match ("vegan" finds
+    "diet:vegan"); recipe search takes notTag= to exclude ("quick but not vegan");
+    the UI's recipe/ingredient form fields take names (autocomplete), not ids.
+  - BFF polish: IngredientCatalogueClient.byIds is @Cacheable (Caffeine 45s); the
+    personalised compose() fans out its 3 downstream reads in parallel.
+  - RecipeCatalogue list N+1 fixed (hibernate.default_batch_fetch_size=64).
   - recipe-crawler service (:8086) — import a recipe from a URL (schema.org
     JSON-LD or HTML microdata, non-LLM), with crawl: link-following, robots.txt,
     per-host rate limiting.
