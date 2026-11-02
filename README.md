@@ -44,8 +44,9 @@ All under `/bff/**`, session required (`POST /bff/login` first).
 | `GET  /bff/recipes/{id}/portions?scale=X` **or** `?anchorIngredientId=&anchorAmount=&anchorUnit=` | every line's numeric amount × factor, plus `scaledGrams` / `scaledMillilitres` (the volume↔mass equivalent, when a density is known) |
 
 `GET /request` / `POST /response` remain for the GoodNight round-trip demo.
-`templates/` still holds the retired Thymeleaf CRUD views with `<!-- RETIRED -->`
-banners and commented-out routes — kept for history, unreachable.
+The pre-Phase-3 Thymeleaf CRUD — views, routes, the `Basic*` services and the
+local JPA entities — has been deleted; `templates/` now holds only
+`home.html`. Git history has the rest.
 
 ## Run
 
@@ -74,13 +75,12 @@ Local (needs the catalogues + User running):
 | `ZIPKIN_ENDPOINT` | `http://localhost:9411/api/v2/spans` | tracing (URLConnection sender — see `config/TracingSenderConfig`) |
 | `DOWNSTREAM_CONNECT_TIMEOUT` / `DOWNSTREAM_READ_TIMEOUT` | `2s` / `5s` | outbound HTTP timeouts |
 
-No datasource — the `SPRING_DATASOURCE_*` lines in `compose.yaml` are commented
-out.
+No datasource — this service has no persistence.
 
 ## Tests
 
 ```bash
-./mvnw test        # 30: context, BFF security, composition (incl. the parallel
+./mvnw test        # 31: context, BFF security, composition (incl. the parallel
                    #     fan-out), calculators (incl. volume↔mass via density),
                    #     GoodNight client, circuit-breaker interceptor
 ```
@@ -119,9 +119,17 @@ out.
 ## Security
 
 ⚠️ Development posture: `/bff/**` is session-gated and does an ownership check on
-favourites, **but the downstream services trust the network** and every port is
-published on `0.0.0.0`. See **`../IngredientCatalogue/SECURITY.md`** for the full
-assessment. Do not deploy as-is.
+favourites. Calls to the User service and the catalogues are signed with an HMAC
+`X-Internal-Auth` header (C1 / C2), but the shared secret still has a **public dev
+default** (finding N1). Published ports are bound to `127.0.0.1` (except the UI).
+
+The actuator exposes only `health,info,prometheus` — the same minimal surface as
+every other service (finding N5: it used to add `caches`, whose unauthenticated
+`DELETE` flushed the `byIds` cache, and `metrics`; the cache's hit / miss counters
+are still on `/actuator/prometheus`).
+
+See **`../IngredientCatalogue/SECURITY.md`** for the full assessment. Do not
+deploy as-is.
 
 ## Status
 

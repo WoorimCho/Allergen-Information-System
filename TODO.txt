@@ -1,6 +1,6 @@
 ALLERGEN INFORMATION SYSTEM
 Microservices migration + product roadmap
-Last updated: 2026-09-09
+Last updated: 2026-10-14 (Phase 5A first pass: N3 / N4 / N5 / N7 done)
 
 Merge of the migration/infra plan with the product roadmap in
   src/main/resources/TODO Lst   (kept as-is; this file supersedes it for tracking)
@@ -31,6 +31,23 @@ Since 2026-08-29, in ../IngredientCatalogue/CHANGES.md:
   - GoodNightWorld caught up to Boot 4.1.1 (OpenFeign -> RestClient).
   - All 8 repos pushed to GitHub; CI workflow in every one, package-write enabled.
   - Projects/ is deliberately NOT a git repo (compose.yaml / infra/ are local-only).
+
+Since 2026-09-09 (the 2026-09-10 session):
+  - Dead-code cleanup: the monolith's commented-out Phase 3 code (Food / Ingredient
+    / Recipe entities, repositories, BasicService, 17 templates, dead datasource
+    config) was DELETED outright, not just commented (29 files, ~1,900 lines; git
+    history keeps every version). GoodNightWorld trimmed the same way.
+  - RecipeCatalogue: a recipe needs >= 1 ingredient; ingredient ids must be positive.
+  - UI: reusable Pager (Prev/Next + "Page [N] of M" jump box) on the ingredient,
+    recipe, tag and nutrition-reference lists; the recipe form refuses a recipe
+    with no ingredient.
+  - recipe-crawler: a clear 422 when a site blocks bots (SourcePageException) and a
+    polite User-Agent; optional LLM free-text fallback (see Phase 4).
+  - Pen test #2 + architecture / coding-practice review: every 2026-09-09 fix held;
+    six NEW findings N1-N6 are logged in ../IngredientCatalogue/SECURITY.md
+    ("Re-test - 2026-09-10"). Phase 5 below tracks them.
+  - AWS: a CDK scaffold (ECS Fargate + RDS) was built and `cdk synth`-validated,
+    never deployed, then removed. Nothing exists in AWS yet.
 
 ------------------------------------------------------------------
 MIGRATION STRATEGY
@@ -68,6 +85,10 @@ DECISIONS STILL OPEN
   (GoodNightWorld caught up 2026-09-09: dropped Spring Cloud OpenFeign — no Boot-4
   release train yet — for a plain RestClient).
 - (resolved 2026-09-09) All 8 repos are on GitHub under WoorimCho/ and pushed.
+- (resolved 2026-09-10) AWS shape: ECS Fargate + AWS CDK (TypeScript), RDS MySQL 8.4
+  db.t4g.micro, spin-up-for-demos / tear-down, core 5 services only (UI, BFF,
+  IngredientCatalogue, RecipeCatalogue, User). recipe-crawler + GoodNight stay out
+  until N2 (SSRF) is fixed. The scaffold was built then removed - rebuild it in 5C.
 
 ------------------------------------------------------------------
 TARGET SERVICES
@@ -170,6 +191,11 @@ Per-slice extraction recipe (repeat for each domain):
     tags per row). Chose batch fetching over @EntityGraph so paginated search
     stays a real SQL page - a collection join-fetch would force in-memory paging.
     Guarded by RecipeListQueryCountDataJpaTest (page of 8 -> <= 12 queries).
+[x] 2026-09-10: a recipe needs >= 1 ingredient (RecipeServiceImpl.apply -> 400; covers
+    POST, PUT and every CSV row). RecipeIngredient / Replacement ingredientId and
+    replacement recipeId must be @Positive. openapi: minItems 1 / minimum 1.
+    "The ingredient exists" stays a UI-form check on purpose - no RecipeCatalogue ->
+    IngredientCatalogue call on save, so the two services stay decoupled.
 [ ] Later: promote time/difficulty to fields IF range-filter/sort is ever needed.
     Still just tags (difficulty:easy, time:90min); no caller needs range queries.
 
@@ -331,8 +357,8 @@ PHASE 3 - CUTOVER                                             [COMPLETE]
 Decision: no UI. The server-rendered Thymeleaf CRUD is retired; the product is
 the catalogue JSON APIs + the /bff/** composition endpoints. The monolith is now
 BFF + auth + GoodNight + a landing page, and has NO database.
-Retired code is COMMENTED OUT in place (not deleted) - restore instructions in
-each file's banner. Delete for real once the cutover has settled.
+Retired code was COMMENTED OUT in place at the cutover (restore banner in each
+file), then DELETED outright on 2026-09-10 - git history keeps every version.
 
 [x] Point the UI+BFF entirely at the services -> UI dropped instead (see above).
 [x] Migrate monolith rows -> SKIPPED. mydatabase held only throwaway CRUD test
@@ -415,6 +441,13 @@ Track chosen: foundations -> calculators first. Detail:
     calculators show weight<->volume equivalents and count volume lines that have
     a density; portion slider; /recipes/import-url (drives recipe-crawler);
     optional registration email.
+    2026-09-10 additions: Pager fragment (Prev/Next + "Page [N] of M" jump box,
+    carries filters + sort) on the ingredient / recipe / tag / nutrition-reference
+    lists (nutrition-reference is now paged, 25/page); recipe form requires >= 1
+    ingredient. 8 UI tests.
+    2026-10-14 additions (Phase 5A): default-deny AuthInterceptor (every write needs a
+    login; reading stays public - SECURITY.md N7), SafeRedirect on every redirect
+    built from request input (N3), recipe-form size limits (N4). 159 UI tests.
 
 [x] Volume <-> mass in the calculators: IngredientCatalogue ingredient carries an
     optional densityGPerMl (V4). BFF Units.toGrams(amount, unit, density) — a
@@ -441,18 +474,27 @@ Track chosen: foundations -> calculators first. Detail:
       [x] Per-target circuit breakers (recipe-source / ingredient-catalogue /
           recipe-catalogue) + spring.http.clients.* timeouts.
       [x] UI: /recipes/import-url (preview -> import) + /recipes/crawl.  39 tests.
-[ ] RAG portion: for pages with NEITHER JSON-LD nor microdata (free-text /
-    RDFa-only), hand the HTML to an LLM -> structured RecipeCatalogue JSON.
-    NOT STARTED. Home: a third strategy in RecipeExtractor, after microdata.
-    Use the claude-api reference when starting it.
+[x] LLM free-text fallback (2026-09-10): third strategy in RecipeExtractor, after
+    microdata. For pages with NO schema.org JSON-LD/microdata, POST the visible
+    text to an OpenAI-compatible /chat/completions endpoint -> {name, yield,
+    ingredients[], steps[]} -> the normal line parser + catalogue resolve.
+    - Provider-neutral (NOT the Claude SDK): plain RestClient over the OpenAI
+      chat-completions shape. LLM_BASE_URL/LLM_MODEL/LLM_API_KEY -> OpenAI,
+      Anthropic (/v1), Gemini's OpenAI endpoint, Groq, OpenRouter, local Ollama.
+    - OFF unless all three are set. Import path ONLY (preview/commit); the crawler
+      never calls it, so a walk can't fan out into an LLM call per page.
+    - Own RestClient (45s read timeout) + `llm` circuit breaker. Bad JSON / "not
+      a recipe" -> 422; unreachable / breaker open -> 502.
+    - recipe-crawler 40 -> 58 tests. README + this file updated.
+    Not done: RDFa parsing.
 
 
 ==================================================================
 PHASE 5 - DEPLOY / HARDEN                                  [in progress]
 ==================================================================
-[ ] Connect to AWS and deploy
-[ ] Standardise image builds (Buildpacks / Jib); k8s manifests / Helm if
-    going beyond compose
+[ ] Connect to AWS and deploy            -> 5C below (after 5A hardening + 5B readiness)
+[ ] Standardise image builds (Buildpacks / Jib); k8s manifests / Helm
+                                         -> optional (5B); skip k8s/Helm, Fargate makes it moot
 [~] Security hardening — see ../IngredientCatalogue/SECURITY.md "Remediation log".
     Batch 1 done 2026-09-09 (mechanical):
       [x] H1  root compose: all ports -> 127.0.0.1 except the UI (8081)
@@ -472,17 +514,62 @@ PHASE 5 - DEPLOY / HARDEN                                  [in progress]
               (th:action auto-injects _csrf); SameSite=Strict cookie; no URL rewriting
       [x] M5  X-Frame-Options DENY, nosniff, CSP, Referrer-Policy no-referrer
       [x] M1  request.changeSessionId() in AuthController login / register
-    Still open:
-      [ ] H4  per-service compose.yaml files still carry root/verysecret, myuser/secret
-              -> untracked .env, non-trivial values
+    Pen test #2 (2026-09-10): every fix above held; six new findings N1-N6 (detail in
+    SECURITY.md "Re-test - 2026-09-10").
+
+    5A  Finish hardening - suggested order, quick wins first:
+    First pass done 2026-10-14:
+      [x] N3  open redirect: one SafeRedirect for the three request-driven redirects
+              (login next + favourites back + theme back); //host and /\host refused
+      [x] N4  caps on every request collection / element string (recipe, tags, CSV
+              rows + fields, User restrictions / favourites, crawler seeds), the UI
+              recipe form refused before any ingredient lookup; User's restrictions
+              PUT now actually validated (it had no @Valid)
+      [x] N5  BFF actuator trimmed to health,info,prometheus
+      [x] N7  NEW - anonymous writes through the UI: every write route (and the
+              import / crawl tools) worked with no session. Now default-deny: every
+              non-GET needs a login except sign in / up / out + the theme switch.
+      [ ] N4 residual: a JSON request-body size cap (collections are bounded, a huge
+              body is still parsed) - do at the ingress / ALB
+      [x] H4  (2026-11-01) MySQL credentials out of every tracked file: compose.yaml in
+              IngredientCatalogue / RecipeCatalogue / User read ${MYSQL_*:?set in .env}
+              (Compose refuses to start without them), .env git-ignored + .env.example
+              names-only, the application.properties password default removed, the
+              Allergen repo's commented-out copies deleted. The passwords were ROTATED
+              on the live stack (ALTER USER; the old ones are rejected). The module
+              compose files are now loopback-bound too.
+    Still to do:
+      [ ] N1  the shared HMAC secret has a public default (12 source/config files +
+              compose.yaml): drop the defaults so a missing secret fails startup;
+              secrets from an untracked .env (+ a committed .env.example)
+      [ ] Grafana admin password -> .env too (the default is still admin/admin)
+      [ ] DB least privilege: one MySQL user per service, granted only on its own
+              schema (today all three connect as `myuser` with ALL on every schema,
+              infra/mysql-init/01-databases.sql); drop the dead `mydatabase` grant
+      [ ] N2  recipe-crawler SSRF guard: http(s) only; resolve the host and reject
+              private / loopback / link-local (incl. 169.254.169.254); connect to the
+              vetted IP; re-check every redirect; cap response size + time
       [ ] M3  register enumeration (distinct "username taken" vs "email registered")
       [ ] M4  rate limiting on /login /register /authenticate
-      [ ] module-local compose.yaml files not yet 127.0.0.1-bound
-      [ ] /actuator unprotected; L1-L7 low-severity
-      [ ] H4  MySQL creds -> untracked .env; non-trivial values
-      [ ] M3  register enumeration     M4  rate limiting on auth endpoints
-      [ ] module-local compose.yaml files not yet 127.0.0.1-bound
-      [ ] nothing on /actuator is protected
+      [ ] /actuator unprotected on the other services; L1-L7 low-severity
+      [ ] N6  LLM prompt-injection: cap the output fields; keep the feature off by
+              default (low)
+      [ ] CI guardrails: secret scanning (gitleaks), Dependabot / Renovate, image scan
+      [ ] Pen test #3 as the exit gate; log the results in SECURITY.md
+
+    5B  Deploy-readiness (only matters behind HTTPS + a load balancer):
+      [ ] Secure session cookie + HSTS (UI has SameSite=strict + HttpOnly only)
+      [ ] server.forward-headers-strategy=framework (trust the ALB's X-Forwarded-*)
+      [ ] graceful shutdown, readiness / liveness probe groups, container JVM memory flags
+      [ ] keep recipe-crawler out of the first deploy until N2 is verified
+
+    5C  AWS: ECS Fargate + CDK (TypeScript), RDS MySQL 8.4 db.t4g.micro, ALB, Secrets
+        Manager, spin-up-for-demos; core 5 services (see DECISIONS above)
+      [ ] aws sso login -> rebuild the CDK scaffold -> bootstrap -> push images -> deploy
+      [ ] domain + ACM certificate + HTTPS listener (+ HTTP -> HTTPS redirect)
+      [ ] GitHub Actions -> AWS via OIDC (no stored keys): image tagged by commit SHA
+          -> ECR -> ECS service update   (= "automatic deploys from GitHub")
+      [ ] AWS Budgets alarm + the teardown script
 
 
 ------------------------------------------------------------------

@@ -3,6 +3,9 @@
 !README.md
 !CHANGES.md
 !SECURITY.md
+# Local-only session notes — never commit
+WALKTHROUGH.md
+REBUILD-STEPS.md
 
 target/
 .mvn/wrapper/maven-wrapper.jar
@@ -42,3 +45,6 @@ build/
 
 src/main/resources/TODO Lst
 src/main/resources/INTERVIEW PREP
+
+# Local secrets - never commit (copy .env.example to .env and fill it in)
+.env
