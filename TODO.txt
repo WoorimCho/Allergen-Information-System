@@ -535,9 +535,10 @@ PHASE 5 - DEPLOY / HARDEN                                  [in progress]
               IngredientCatalogue / RecipeCatalogue / User read ${MYSQL_*:?set in .env}
               (Compose refuses to start without them), .env git-ignored + .env.example
               names-only, the application.properties password default removed, the
-              Allergen repo's commented-out copies deleted. The passwords were ROTATED
-              on the live stack (ALTER USER; the old ones are rejected). The module
-              compose files are now loopback-bound too.
+              Allergen repo's leftovers deleted (commented-out compose + properties
+              lines, and diagnose-mysql.ps1 with an inline -p<password>). The
+              passwords were ROTATED on the live stack (ALTER USER; the old ones are
+              rejected). The module compose files are now loopback-bound too.
     Still to do:
       [ ] N1  the shared HMAC secret has a public default (12 source/config files +
               compose.yaml): drop the defaults so a missing secret fails startup;
