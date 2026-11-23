@@ -1,4 +1,8 @@
 # Runs just the BFF + GoodNight. For the full system use ../compose.yaml.
+#
+# Copy .env.example to .env (git-ignored) and set INTERNAL_AUTH_SECRET, the HMAC
+# secret the BFF signs its downstream calls with (`openssl rand -hex 24`).
+# Compose refuses to start while it is unset or empty.
 services:
   app:
     build:
@@ -10,8 +14,9 @@ services:
         condition: service_started
     environment:
       - 'GOODNIGHT_URL=http://goodnightworld:8085'
+      - 'INTERNAL_AUTH_SECRET=${INTERNAL_AUTH_SECRET:?set in .env}'
     ports:
-      - '8080:8080'
+      - '127.0.0.1:8080:8080'
     networks:
       - allergen-network
     restart: unless-stopped
@@ -25,7 +30,7 @@ services:
       - SPRING_PROFILES_ACTIVE=docker
       - 'FEIGN_CLIENT_CONFIG_DYNAMICRECEIVER_URL=http://allergen-app:8080/response'
     ports:
-      - '8085:8085'
+      - '127.0.0.1:8085:8085'
     networks:
       - allergen-network
     restart: unless-stopped

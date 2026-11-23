@@ -41,3 +41,6 @@ logs/
 **/test-results/
 **/coverage/
 
+
+# Local secrets
+.env

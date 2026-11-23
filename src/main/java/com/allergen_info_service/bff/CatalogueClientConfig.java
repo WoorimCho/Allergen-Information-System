@@ -26,7 +26,7 @@ class CatalogueClientConfig {
     private final InternalAuthClientInterceptor internalAuth;
 
     CatalogueClientConfig(CircuitBreakerRegistry breakers,
-                          @Value("${internal-auth.secret:dev-internal-secret-change-me}") String internalAuthSecret) {
+                          @Value("${internal-auth.secret:}") String internalAuthSecret) {
         this.breakers = breakers;
         this.internalAuth = new InternalAuthClientInterceptor(internalAuthSecret);
     }

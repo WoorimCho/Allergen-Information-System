@@ -51,6 +51,9 @@ local JPA entities — has been deleted; `templates/` now holds only
 ## Run
 
 ```bash
+# once: the HMAC secret lives in a git-ignored .env, never in the repo
+cp .env.example .env      # fill in INTERNAL_AUTH_SECRET (openssl rand -hex 24) - the same value in every service
+
 # whole system (from Projects/)
 cd .. && docker compose up --build
 
@@ -64,6 +67,10 @@ Local (needs the catalogues + User running):
 ./mvnw spring-boot:run
 ```
 
+The service refuses to start without `INTERNAL_AUTH_SECRET` (at least 32 characters;
+finding N1). In a container it comes from the environment; locally
+`spring.config.import` reads it from `.env`.
+
 ## Configuration (env)
 
 | Var | Default | |
@@ -72,6 +79,7 @@ Local (needs the catalogues + User running):
 | `RECIPE_CATALOGUE_URL` | `http://localhost:8083` | |
 | `USER_SERVICE_URL` | `http://localhost:8084` | |
 | `GOODNIGHT_URL` | `http://localhost:8085` | |
+| `INTERNAL_AUTH_SECRET` | **none** | the HMAC secret every service shares (at least 32 characters); startup fails without it (finding N1) |
 | `ZIPKIN_ENDPOINT` | `http://localhost:9411/api/v2/spans` | tracing (URLConnection sender — see `config/TracingSenderConfig`) |
 | `DOWNSTREAM_CONNECT_TIMEOUT` / `DOWNSTREAM_READ_TIMEOUT` | `2s` / `5s` | outbound HTTP timeouts |
 
@@ -80,9 +88,10 @@ No datasource — this service has no persistence.
 ## Tests
 
 ```bash
-./mvnw test        # 31: context, BFF security, composition (incl. the parallel
+./mvnw test        # 39: context, BFF security, composition (incl. the parallel
                    #     fan-out), calculators (incl. volume↔mass via density),
-                   #     GoodNight client, circuit-breaker interceptor
+                   #     GoodNight client, circuit-breaker interceptor, actuator
+                   #     exposure, shared-secret check
 ```
 
 ## Performance
@@ -120,8 +129,9 @@ No datasource — this service has no persistence.
 
 ⚠️ Development posture: `/bff/**` is session-gated and does an ownership check on
 favourites. Calls to the User service and the catalogues are signed with an HMAC
-`X-Internal-Auth` header (C1 / C2), but the shared secret still has a **public dev
-default** (finding N1). Published ports are bound to `127.0.0.1` (except the UI).
+`X-Internal-Auth` header (C1 / C2); the shared secret has **no default** (finding N1,
+fixed 2026-11-02) — startup fails without an `INTERNAL_AUTH_SECRET` of at least 32
+characters. Published ports are bound to `127.0.0.1` (except the UI).
 
 The actuator exposes only `health,info,prometheus` — the same minimal surface as
 every other service (finding N5: it used to add `caches`, whose unauthenticated
